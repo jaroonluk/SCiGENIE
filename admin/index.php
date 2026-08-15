@@ -14,145 +14,184 @@ foreach ($faqs as $row) {
     $src = $row['source'] ?? 'sheet';
     $counts[$src] = ($counts[$src] ?? 0) + 1;
 }
+
+function faq_payload(array $row): array
+{
+    return [
+        'id' => (string) $row['id'],
+        'category' => $row['category'],
+        'question' => $row['question'],
+        'keyword' => $row['keyword'],
+        'keyword_back' => $row['keyword_back'] ?? '',
+        'answer' => $row['answer'],
+        'source' => $row['source'] ?? 'sheet',
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>เพิ่มคำถาม | SCiGENIE</title>
+  <title>จัดการคำถาม | SCiGENIE</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="icon" href="<?= htmlspecialchars(logo_url()) ?>">
   <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css">
 </head>
-<body>
-  <div class="admin-shell">
-    <aside class="side">
-      <div class="login-mark" style="background:linear-gradient(135deg,#ffd54a,#d4a017);color:#1c1608;display:grid;place-items:center;width:48px;height:48px;border-radius:14px;">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/></svg>
+<body class="admin-page">
+  <header class="topbar-admin">
+    <div class="brand-mini">
+      <img src="<?= htmlspecialchars(logo_url()) ?>" alt="SCiGENIE">
+      <div>
+        <strong>จัดการคลังคำถามอัจฉริยะ</strong>
+        <span>เลือกจากตารางเพื่อดูคำตอบ กดแก้ไขเพื่อปรับข้อมูล หรือกดเพิ่มคำถามใหม่</span>
       </div>
-      <h2>SCiGENIE</h2>
-      <p class="hint" style="color:#efe3c4;">คลังคำถามคณะวิทยาศาสตร์</p>
-      <a class="active" href="index.php">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-        เพิ่มคำถาม
-      </a>
-      <a href="<?= htmlspecialchars($base) ?>/index.php" target="_blank">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        ดูหน้าต่างช่วยเหลือ
-      </a>
-      <a href="<?= htmlspecialchars((string) config('sheet_url')) ?>" target="_blank" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-        เปิด Google Sheet
-      </a>
-      <a href="logout.php">ออกจากระบบ</a>
-    </aside>
+    </div>
+    <div class="stat-pills" aria-label="สรุปคลังคำถาม">
+      <span class="pill" data-tip="จำนวนคำถามที่ SCiGENIE นำไปตอบได้ทั้งหมด"><b id="stat-total"><?= count($faqs) ?></b> คำถาม</span>
+      <span class="pill" data-tip="จำนวนหมวดที่ใช้จัดกลุ่มคำถาม"><b><?= count($categories) ?></b> หมวด</span>
+      <span class="pill" data-tip="รายการที่ดึงมาจาก Google Sheet"><b><?= (int) ($counts['sheet'] ?? 0) ?></b> จากชีต</span>
+      <span class="pill" data-tip="รายการที่เพิ่มหรือแก้ผ่านหน้านี้"><b id="stat-local"><?= (int) ($counts['local'] ?? 0) ?></b> จากระบบนี้</span>
+    </div>
+    <nav class="page-tabs" aria-label="หน้าผู้จัดการ">
+      <a class="tab active" href="index.php" data-tip="หน้าปัจจุบัน สำหรับเพิ่ม แก้ไข ลบคำถาม">คลังคำถาม</a>
+      <a class="tab" href="insights.php" data-tip="ดูว่าใครถามอะไร เมื่อไหร่ ระบบตอบอย่างไร พร้อมกราฟ">สรุปการถาม</a>
+    </nav>
+    <nav class="top-actions">
+      <a class="btn ghost" href="<?= htmlspecialchars($base) ?>/index.php" target="_blank" data-tip="เปิดหน้าเว็บคณะเพื่อทดลองถาม SCiGENIE">ทดลองถาม</a>
+      <a class="btn ghost" href="<?= htmlspecialchars((string) config('sheet_url')) ?>" target="_blank" rel="noopener" data-tip="เปิด Google Sheet ต้นทางของคลังคำถาม">เปิดชีต</a>
+      <a class="btn ghost" href="logout.php" data-tip="ออกจากระบบผู้จัดการ">ออกจากระบบ</a>
+      <button class="btn" type="button" id="btn-add" data-tip="เปิดแบบฟอร์มด้านขวาเพื่อเพิ่มคำถามใหม่เข้าคลัง">+ เพิ่มคำถาม</button>
+    </nav>
+  </header>
 
-    <main class="main">
-      <div class="top">
-        <div>
-          <h1 style="margin:0;">เพิ่มคำถามเข้าคลังอัจฉริยะ</h1>
-          <p class="hint">เลือกหมวด กรอกคำถาม คีย์เวิร์ด และคำตอบ เพื่อให้ SCiGENIE นำไปตอบผู้ใช้</p>
-        </div>
-        <a class="btn ghost" href="<?= htmlspecialchars((string) config('sheet_url')) ?>" target="_blank" rel="noopener">เปิดชีตต้นทาง</a>
+  <div class="workspace">
+    <section class="list-pane">
+      <div class="toolbar">
+        <label class="field-inline">
+          <span>หมวด</span>
+          <select id="filter-cat" data-tip="กรองเฉพาะหมวดที่ต้องการดู เช่น ลงทะเบียน หรือ การสอบ">
+            <option value="">ทุกหมวด</option>
+            <?php foreach ($categories as $cat): ?>
+              <option value="<?= htmlspecialchars($cat['name']) ?>"><?= htmlspecialchars($cat['short']) ?> (<?= (int) $cat['count'] ?>)</option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+        <label class="field-inline grow">
+          <span>ค้นหา</span>
+          <input id="filter-q" placeholder="พิมพ์คำถาม คีย์เวิร์ด หรือข้อความในคำตอบ" data-tip="พิมพ์คำใดก็ได้ที่อยู่ในคำถาม คีย์เวิร์ด หรือคำตอบ ตารางจะกรองทันที">
+        </label>
+        <div class="result-count" id="result-count" data-tip="จำนวนรายการที่แสดงหลังกรอง"><?= count($faqs) ?> รายการ</div>
       </div>
 
-      <div class="stats">
-        <div class="stat"><span class="hint">คำถามทั้งหมด</span><b><?= count($faqs) ?></b></div>
-        <div class="stat"><span class="hint">หมวด</span><b><?= count($categories) ?></b></div>
-        <div class="stat"><span class="hint">จาก Google Sheet</span><b><?= (int) ($counts['sheet'] ?? 0) ?></b></div>
-        <div class="stat"><span class="hint">เพิ่มจากระบบนี้</span><b><?= (int) ($counts['local'] ?? 0) ?></b></div>
+      <div class="table-wrap" id="table-wrap">
+        <table class="faq-table">
+          <thead>
+            <tr>
+              <th style="width:12%">หมวด</th>
+              <th style="width:28%">คำถาม</th>
+              <th style="width:32%">คำตอบที่ระบบจะแสดง</th>
+              <th style="width:16%">คีย์เวิร์ด</th>
+              <th style="width:12%">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="faq-body">
+            <?php foreach ($faqs as $row): ?>
+              <?php $payload = faq_payload($row); ?>
+              <tr class="faq-row" data-id="<?= htmlspecialchars($payload['id']) ?>" data-cat="<?= htmlspecialchars($row['category']) ?>" data-text="<?= htmlspecialchars(mb_strtolower($row['category'] . ' ' . $row['question'] . ' ' . $row['keyword'] . ' ' . ($row['keyword_back'] ?? '') . ' ' . $row['answer'])) ?>" data-item="<?= htmlspecialchars(json_encode($payload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>">
+                <td><span class="tag"><?= htmlspecialchars(Categories::short($row['category'])) ?></span></td>
+                <td>
+                  <div class="cell-q"><?= htmlspecialchars($row['question']) ?></div>
+                  <button type="button" class="linkish preview" data-tip="คลิกเพื่อขยายดูคำตอบเต็มในแถวนี้">ดูคำตอบเต็ม</button>
+                </td>
+                <td><div class="cell-a"><?= htmlspecialchars($row['answer']) ?></div></td>
+                <td><div class="cell-k"><?= htmlspecialchars($row['keyword']) ?></div></td>
+                <td>
+                  <div class="actions">
+                    <button type="button" class="icon-act edit" data-tip="เปิดแบบฟอร์มด้านขวา พร้อมข้อมูลคำถามนี้ให้แก้ไข" aria-label="แก้ไข">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v9.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10.4 12.6a2 2 0 1 1 3 3L8 21l-4 1 1-4Z"/></svg>
+                    </button>
+                    <button type="button" class="icon-act del" data-tip="ลบคำถามนี้ออกจากคลัง SCiGENIE จะไม่ตอบข้อนี้อีก" aria-label="ลบ">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+        <div class="empty-state" id="empty-state" hidden>ไม่พบรายการที่ตรงกับการค้นหา ลองล้างคำค้น หรือเลือกหมวดเป็น “ทุกหมวด”</div>
       </div>
 
-      <div class="layout">
-        <section class="panel">
-          <h3>
-            <span class="ico">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            </span>
-            แบบฟอร์มเพิ่มคำถาม
-          </h3>
-          <form id="add-form">
-            <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf) ?>">
-            <label>หมวดคำถาม</label>
-            <select name="category" id="category" required>
-              <option value="">— เลือกหมวด —</option>
-              <?php foreach ($categories as $cat): ?>
-                <option value="<?= htmlspecialchars($cat['name']) ?>"><?= htmlspecialchars($cat['short']) ?> (<?= (int) $cat['count'] ?>)</option>
-              <?php endforeach; ?>
-              <option value="__new__">+ เพิ่มหมวดใหม่</option>
-            </select>
-            <div id="new-cat-wrap" style="display:none;">
-              <label>ชื่อหมวดใหม่</label>
-              <input id="new-category" placeholder="เช่น ทุนวิจัย">
-            </div>
-            <label>คำถามที่ผู้ใช้มักถาม</label>
-            <textarea name="question" rows="3" required placeholder="เช่น คณะวิทยาศาสตร์อยู่ที่ไหน"></textarea>
-            <label>คีย์เวิร์ดหลัก (คั่นด้วยเครื่องหมายจุลภาค)</label>
-            <input name="keyword" required placeholder="ที่อยู่, คณะวิทยาศาสตร์, ที่ตั้ง">
-            <p class="help">ระบบจะตอบเมื่อข้อความที่ผู้ใช้พิมพ์มีคำเหล่านี้ เช่น พิมพ์ “ที่อยู่คณะ” จะตรงกับคีย์เวิร์ด “ที่อยู่”</p>
-            <label>คีย์เวิร์ดสำรอง (ไม่บังคับ)</label>
-            <input name="keyword_back" placeholder="ที่ไหน, address, แผนที่">
-            <label>คำตอบที่ระบบจะแสดง</label>
-            <textarea name="answer" rows="6" required placeholder="รายละเอียด ขั้นตอน ลิงก์ หรือเบอร์ติดต่อ"></textarea>
-            <button class="btn full" type="submit" id="save-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
-              บันทึกลงคลังคำถาม
-            </button>
-            <div id="form-msg"></div>
-          </form>
-
-          <div class="help" style="margin-top:16px;">
-            <b>เชื่อม Google Sheet เพื่อบันทึกลงชีตจริง</b>
-            <?php if ($sheetConnected): ?>
-              <p>เชื่อม Apps Script แล้ว รายการใหม่จะถูก append ลงชีต</p>
-            <?php else: ?>
-              <ol class="steps">
-                <li>เปิด Google Sheet แล้วไปที่ ส่วนขยาย → Apps Script</li>
-                <li>วางโค้ดจากไฟล์ <code>apps-script/Code.gs</code></li>
-                <li>Deploy → New deployment → Web app (Execute as Me, Anyone)</li>
-                <li>นำ URL ไปใส่ที่ <code>includes/config.php</code> คีย์ <code>apps_script_url</code></li>
-              </ol>
-              <p>ก่อนเชื่อม ระบบจะเก็บคำถามไว้ในเครื่องก่อน แล้วนำไปใช้ตอบได้ทันที</p>
-            <?php endif; ?>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h3>
-            <span class="ico">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            </span>
-            คำถามในคลัง
-          </h3>
-          <div class="searchbar">
-            <select id="filter-cat">
-              <option value="">ทุกหมวด</option>
-              <?php foreach ($categories as $cat): ?>
-                <option value="<?= htmlspecialchars($cat['name']) ?>"><?= htmlspecialchars($cat['short']) ?></option>
-              <?php endforeach; ?>
-            </select>
-            <input id="filter-q" placeholder="ค้นหาคำถาม / คีย์เวิร์ด">
-          </div>
-          <div style="overflow:auto;max-height:70vh;">
-            <table>
-              <thead>
-                <tr><th>หมวด</th><th>คำถาม</th><th>คีย์เวิร์ด</th></tr>
-              </thead>
-              <tbody id="faq-body">
-                <?php foreach ($faqs as $row): ?>
-                  <tr data-cat="<?= htmlspecialchars($row['category']) ?>" data-text="<?= htmlspecialchars(mb_strtolower($row['category'] . ' ' . $row['question'] . ' ' . $row['keyword'] . ' ' . $row['keyword_back'])) ?>">
-                    <td><span class="tag"><?= htmlspecialchars(Categories::short($row['category'])) ?></span></td>
-                    <td><?= htmlspecialchars($row['question']) ?></td>
-                    <td><?= htmlspecialchars($row['keyword']) ?></td>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        </section>
+      <div class="coach" id="coach" role="status">
+        <span class="coach-ico" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </span>
+        <span id="coach-text">คลิกแถวเพื่อดูคำตอบเต็ม กดดินสอเพื่อแก้ไข กดถังขยะเพื่อลบ หรือกด “เพิ่มคำถาม” เพื่อสร้างรายการใหม่</span>
       </div>
-    </main>
+    </section>
   </div>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="drawer" id="drawer" aria-label="แบบฟอร์มคำถาม">
+    <div class="drawer-head">
+      <div>
+        <h2 id="drawer-title">เพิ่มคำถามใหม่</h2>
+        <p class="hint" id="drawer-sub">กรอกทีละช่องตามคำแนะนำด้านล่าง แล้วกดบันทึก</p>
+      </div>
+      <button class="icon-act" type="button" id="drawer-close" data-tip="ปิดแบบฟอร์มโดยไม่บันทึกการเปลี่ยนแปลงล่าสุด" aria-label="ปิด">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <form id="add-form" class="drawer-body">
+      <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="id" id="faq-id" value="">
+
+      <label for="category">1. เลือกหมวดคำถาม</label>
+      <select name="category" id="category" required data-tip="เลือกหมวดให้ตรงกับเรื่องที่ผู้ใช้จะถาม เช่น ลงทะเบียน การสอบ สวัสดิการ">
+        <option value="">— เลือกหมวด —</option>
+        <?php foreach ($categories as $cat): ?>
+          <option value="<?= htmlspecialchars($cat['name']) ?>"><?= htmlspecialchars($cat['short']) ?> (<?= (int) $cat['count'] ?>)</option>
+        <?php endforeach; ?>
+        <option value="__new__">+ เพิ่มหมวดใหม่</option>
+      </select>
+      <p class="field-tip" data-for="category">หมวดช่วยให้ SCiGENIE ตอบตรงเรื่องขึ้น เมื่อผู้ใช้เลือกหมวดก่อนถาม</p>
+      <div id="new-cat-wrap" hidden>
+        <label for="new-category">ชื่อหมวดใหม่</label>
+        <input id="new-category" placeholder="เช่น ทุนวิจัย" data-tip="ตั้งชื่อสั้น ชัดเจน เช่น ทุนวิจัย หรือ หอพัก">
+        <p class="field-tip">ใช้ชื่อที่ผู้ใช้เข้าใจทันที ไม่ต้องยาว</p>
+      </div>
+
+      <label for="question">2. คำถามที่ผู้ใช้มักพิมพ์</label>
+      <textarea name="question" id="question" rows="3" required placeholder="เช่น ค่าเทอมเท่าไหร่" data-tip="เขียนให้เหมือนประโยคที่นักศึกษาพิมพ์จริง ไม่ต้องเป็นภาษาทางการเกินไป"></textarea>
+      <p class="field-tip" data-for="question">ตัวอย่างที่ดี: “เลื่อนสอบทำอย่างไร” หรือ “ย้ายสิทธิบัตรทอง”</p>
+
+      <label for="keyword">3. คีย์เวิร์ดหลัก <small>(คั่นด้วยจุลภาค)</small></label>
+      <input name="keyword" id="keyword" required placeholder="ค่าเทอม, ค่าธรรมเนียม, tuition" data-tip="ใส่คำสั้นๆ ที่มักปรากฏในคำถาม คั่นด้วยเครื่องหมายจุลภาค">
+      <p class="field-tip" data-for="keyword">เมื่อผู้ใช้พิมพ์คำเหล่านี้ ระบบจะเลือกคำตอบนี้ ยิ่งเฉพาะเจาะจงยิ่งแม่น</p>
+      <div class="kw-preview" id="kw-preview"></div>
+
+      <label for="keyword_back">4. คีย์เวิร์ดสำรอง <small>(ไม่บังคับ)</small></label>
+      <input name="keyword_back" id="keyword_back" placeholder="ค่าเล่าเรียน, ค่าหน่วยกิต" data-tip="คำใกล้เคียงหรือคำที่สะกดต่างกัน ใช้เมื่อคีย์เวิร์ดหลักยังไม่ครอบคลุม">
+      <p class="field-tip" data-for="keyword_back">ใส่ได้ถ้ามีคำพ้อง เช่น ที่อยู่ / ที่ตั้ง / อยู่ที่ไหน</p>
+
+      <label for="answer">5. คำตอบที่ระบบจะแสดง</label>
+      <textarea name="answer" id="answer" rows="8" required placeholder="ใส่ขั้นตอน เบอร์โทร ลิงก์ หรือเงื่อนไขให้ครบ" data-tip="ข้อความนี้จะโชว์ในแชท ใส่ลิงก์และเบอร์ติดต่อได้เลย"></textarea>
+      <p class="field-tip" data-for="answer">ควรมีขั้นตอนชัดเจน และใส่ลิงก์เต็มๆ หากมีเอกสารหรือระบบที่เกี่ยวข้อง</p>
+
+      <div id="form-msg"></div>
+      <div class="form-actions">
+        <button class="btn" type="submit" id="save-btn" data-tip="บันทึกแล้ว SCiGENIE จะใช้ข้อมูลนี้ตอบผู้ใช้ทันที">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+          <span id="save-label">บันทึกคำถาม</span>
+        </button>
+        <button class="btn ghost" type="button" id="cancel-btn" data-tip="ปิดแบบฟอร์มและไม่บันทึกการแก้ไขครั้งนี้">ยกเลิก</button>
+      </div>
+      <p class="hint save-note"><?= $sheetConnected ? 'รายการจะถูกส่งไป Google Sheet ด้วย' : 'ยังไม่ได้เชื่อมชีต ระบบจะเก็บในเครื่องแล้วเอาไปตอบได้ทันที' ?></p>
+    </form>
+  </aside>
+
+  <div id="list-msg" class="toast" hidden></div>
   <script src="<?= htmlspecialchars($base) ?>/assets/js/admin.js"></script>
 </body>
 </html>

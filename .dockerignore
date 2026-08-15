@@ -1,0 +1,9 @@
+.git
+.gitignore
+data/faq-local.json
+data/faq-cache.meta.json
+tools/sheet.csv
+README.md
+Dockerfile
+docker-compose.yml
+.dockerignore

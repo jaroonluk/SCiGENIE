@@ -43,7 +43,11 @@
     message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
   };
 
-  function svg(name, extra) {
+  const LOGO = BASE + "/assets/img/logo.jpg";
+  function logoImg() {
+    return `<img src="${LOGO}" alt="SCiGENIE">`;
+  }
+  function svg(name) {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ICONS.folder}</svg>`;
   }
 
@@ -73,7 +77,7 @@
       <div class="scg-tip">ถาม <b>SCiGENIE</b> ได้ที่นี่</div>
       <section class="scg-panel" role="dialog" aria-label="ตอบคำถามอัจฉริยะ">
         <div class="scg-head">
-          <div class="scg-logo">${svg("atom")}</div>
+          <div class="scg-logo">${logoImg()}</div>
           <div>
             <h2>SCiGENIE</h2>
             <p>ผู้ช่วยตอบคำถาม คณะวิทยาศาสตร์ มข.</p>
@@ -95,7 +99,7 @@
       </section>
       <button class="scg-fab" type="button" aria-label="เปิดผู้ช่วย SCiGENIE">
         <span class="scg-pulse"></span>
-        ${svg("message")}
+        ${logoImg()}
       </button>
     </div>
   `);
@@ -120,7 +124,7 @@
     open = typeof force === "boolean" ? force : !open;
     panel.classList.toggle("is-open", open);
     fab.classList.toggle("is-open", open);
-    fab.innerHTML = open ? svg("x") : `<span class="scg-pulse"></span>${svg("message")}`;
+    fab.innerHTML = open ? svg("x") : `<span class="scg-pulse"></span>${logoImg()}`;
     tip.style.display = open ? "none" : "";
     if (open && !loaded) {
       showWelcome();
@@ -146,14 +150,14 @@
       loaded = true;
       renderCategories();
     } catch (e) {
-      body.insertAdjacentHTML("beforeend", `<div class="scg-msg"><div class="scg-avatar">${svg("bot")}</div><div class="scg-bubble">เชื่อมต่อคลังคำถามไม่สำเร็จ กรุณาลองใหม่</div></div>`);
+      body.insertAdjacentHTML("beforeend", `<div class="scg-msg"><div class="scg-avatar">${logoImg()}</div><div class="scg-bubble">เชื่อมต่อคลังคำถามไม่สำเร็จ กรุณาลองใหม่</div></div>`);
     }
   }
 
   function showWelcome() {
     body.innerHTML = `
       <div class="scg-msg">
-        <div class="scg-avatar">${svg("bot")}</div>
+        <div class="scg-avatar">${logoImg()}</div>
         <div class="scg-bubble">สวัสดีค่ะ ยินดีต้อนรับสู่ <b>SCiGENIE</b> ผู้ช่วยตอบคำถามคณะวิทยาศาสตร์ มหาวิทยาลัยขอนแก่น<br><br>เลือกหมวดที่ต้องการสอบถามได้เลยค่ะ</div>
       </div>
       <div class="scg-cats" id="scg-cats"></div>
@@ -207,7 +211,7 @@
   }
 
   function addBot(html, extra) {
-    const node = el(`<div class="scg-msg"><div class="scg-avatar">${svg("bot")}</div><div class="scg-bubble">${html}${extra || ""}</div></div>`);
+    const node = el(`<div class="scg-msg"><div class="scg-avatar">${logoImg()}</div><div class="scg-bubble">${html}${extra || ""}</div></div>`);
     body.appendChild(node);
     body.scrollTop = body.scrollHeight;
     return node;
@@ -233,6 +237,19 @@
     node.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => ask(b.dataset.q)));
   }
 
+  function visitorId() {
+    try {
+      let id = localStorage.getItem("scigenie_vid");
+      if (!id) {
+        id = Math.random().toString(36).slice(2, 8).toUpperCase();
+        localStorage.setItem("scigenie_vid", id);
+      }
+      return id;
+    } catch (e) {
+      return "";
+    }
+  }
+
   async function ask(text) {
     const q = (text || "").trim();
     if (!q || !currentCategory) return;
@@ -242,7 +259,7 @@
       const res = await fetch(API + "/ask.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: currentCategory, question: q })
+        body: JSON.stringify({ category: currentCategory, question: q, visitor: visitorId() })
       });
       const data = await res.json();
       removeTyping();

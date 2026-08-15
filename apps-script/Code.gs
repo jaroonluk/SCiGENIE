@@ -35,10 +35,41 @@ function doPost(e) {
       return json_({ ok: true, row: sheet.getLastRow() });
     }
 
+    if (action === 'update' || action === 'delete') {
+      const originalCategory = String(body.original_category || body.category || '').trim();
+      const originalQuestion = String(body.original_question || body.question || '').trim();
+      const rowIndex = findRow_(sheet, originalCategory, originalQuestion);
+      if (!rowIndex) {
+        return json_({ ok: false, error: 'row not found' });
+      }
+      if (action === 'delete') {
+        sheet.deleteRow(rowIndex);
+        return json_({ ok: true, deleted: rowIndex });
+      }
+      sheet.getRange(rowIndex, 1, 1, 5).setValues([[
+        String(body.category || '').trim(),
+        String(body.question || '').trim(),
+        String(body.keyword || '').trim(),
+        String(body.answer || '').trim(),
+        String(body.keyword_back || '').trim()
+      ]]);
+      return json_({ ok: true, row: rowIndex });
+    }
+
     return json_({ ok: false, error: 'unknown action' });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
   }
+}
+
+function findRow_(sheet, category, question) {
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0] || '').trim() === category && String(values[i][1] || '').trim() === question) {
+      return i + 1;
+    }
+  }
+  return 0;
 }
 
 function json_(obj) {

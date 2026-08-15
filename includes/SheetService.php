@@ -9,12 +9,17 @@ class SheetService
     private string $metaFile;
     private string $localFile;
 
+    private string $overridesFile;
+    private string $deletedFile;
+
     public function __construct()
     {
         $this->dataDir = dirname(__DIR__) . '/data';
         $this->cacheFile = $this->dataDir . '/faq-cache.json';
         $this->metaFile = $this->dataDir . '/faq-cache.meta.json';
         $this->localFile = $this->dataDir . '/faq-local.json';
+        $this->overridesFile = $this->dataDir . '/faq-overrides.json';
+        $this->deletedFile = $this->dataDir . '/faq-deleted.json';
         if (!is_dir($this->dataDir)) {
             mkdir($this->dataDir, 0777, true);
         }
@@ -22,9 +27,19 @@ class SheetService
 
     public function all(bool $forceRefresh = false): array
     {
-        $sheetRows = $this->fromSheet($forceRefresh);
+        $sheetRows = $this->applyOverrides($this->fromSheet($forceRefresh));
         $localRows = $this->fromLocal();
         return $this->merge($sheetRows, $localRows);
+    }
+
+    public function findById(string $id): ?array
+    {
+        foreach ($this->all() as $row) {
+            if ((string) ($row['id'] ?? '') === $id) {
+                return $row;
+            }
+        }
+        return null;
     }
 
     public function categories(bool $forceRefresh = false): array
@@ -52,7 +67,7 @@ class SheetService
     public function add(array $item): array
     {
         $row = [
-            'id' => 'local-' . time(),
+            'id' => 'local-' . uniqid('', true),
             'category' => trim((string) ($item['category'] ?? '')),
             'question' => trim((string) ($item['question'] ?? '')),
             'keyword' => trim((string) ($item['keyword'] ?? '')),
@@ -68,14 +83,100 @@ class SheetService
 
         $local = $this->fromLocal();
         $local[] = $row;
-        file_put_contents($this->localFile, json_encode($local, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        $this->writeJson($this->localFile, $local);
 
-        $sheet = $this->appendToGoogle($row);
+        $sheet = $this->syncGoogle('append', $row, $row);
 
         return [
             'item' => $row,
             'sheet' => $sheet,
         ];
+    }
+
+    public function update(string $id, array $item): array
+    {
+        $fields = $this->validatedFields($item);
+        $current = $this->findById($id);
+        if ($current === null) {
+            throw new InvalidArgumentException('ไม่พบคำถามที่ต้องการแก้ไข');
+        }
+
+        $updated = array_merge($current, $fields, [
+            'id' => $id,
+            'updated_at' => date('c'),
+        ]);
+
+        if (($current['source'] ?? 'sheet') === 'local' || str_starts_with($id, 'local-')) {
+            $local = $this->fromLocal();
+            $found = false;
+            foreach ($local as $i => $row) {
+                if ((string) ($row['id'] ?? '') === $id) {
+                    $local[$i] = array_merge($row, $updated, ['source' => 'local']);
+                    $updated = $local[$i];
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                throw new InvalidArgumentException('ไม่พบคำถามในคลังเครื่อง');
+            }
+            $this->writeJson($this->localFile, $local);
+        } else {
+            $overrides = $this->fromOverrides();
+            $overrides[$id] = array_merge($updated, [
+                'source' => 'sheet',
+                'original_category' => $current['original_category'] ?? $current['category'],
+                'original_question' => $current['original_question'] ?? $current['question'],
+            ]);
+            $this->writeJson($this->overridesFile, $overrides);
+            $updated = $overrides[$id];
+        }
+
+        $sheet = $this->syncGoogle('update', $current, $updated);
+        return ['item' => $updated, 'sheet' => $sheet];
+    }
+
+    public function delete(string $id): array
+    {
+        $current = $this->findById($id);
+        if ($current === null) {
+            throw new InvalidArgumentException('ไม่พบคำถามที่ต้องการลบ');
+        }
+
+        if (($current['source'] ?? 'sheet') === 'local' || str_starts_with($id, 'local-')) {
+            $local = array_values(array_filter(
+                $this->fromLocal(),
+                static fn ($row) => (string) ($row['id'] ?? '') !== $id
+            ));
+            $this->writeJson($this->localFile, $local);
+        } else {
+            $deleted = $this->fromDeleted();
+            if (!in_array($id, $deleted, true)) {
+                $deleted[] = $id;
+            }
+            $this->writeJson($this->deletedFile, $deleted);
+            $overrides = $this->fromOverrides();
+            unset($overrides[$id]);
+            $this->writeJson($this->overridesFile, $overrides);
+        }
+
+        $sheet = $this->syncGoogle('delete', $current, $current);
+        return ['id' => $id, 'sheet' => $sheet];
+    }
+
+    private function validatedFields(array $item): array
+    {
+        $fields = [
+            'category' => trim((string) ($item['category'] ?? '')),
+            'question' => trim((string) ($item['question'] ?? '')),
+            'keyword' => trim((string) ($item['keyword'] ?? '')),
+            'answer' => trim((string) ($item['answer'] ?? '')),
+            'keyword_back' => trim((string) ($item['keyword_back'] ?? '')),
+        ];
+        if ($fields['category'] === '' || $fields['question'] === '' || $fields['answer'] === '' || $fields['keyword'] === '') {
+            throw new InvalidArgumentException('กรุณากรอกหมวด คำถาม คีย์เวิร์ด และคำตอบให้ครบ');
+        }
+        return $fields;
     }
 
     private function fromSheet(bool $forceRefresh): array
@@ -160,6 +261,36 @@ class SheetService
         return $this->readJson($this->localFile);
     }
 
+    private function fromOverrides(): array
+    {
+        $data = $this->readJson($this->overridesFile);
+        return is_array($data) ? $data : [];
+    }
+
+    private function fromDeleted(): array
+    {
+        $data = $this->readJson($this->deletedFile);
+        return array_map('strval', array_values($data));
+    }
+
+    private function applyOverrides(array $sheet): array
+    {
+        $deleted = array_flip($this->fromDeleted());
+        $overrides = $this->fromOverrides();
+        $out = [];
+        foreach ($sheet as $row) {
+            $id = (string) ($row['id'] ?? '');
+            if ($id !== '' && isset($deleted[$id])) {
+                continue;
+            }
+            if ($id !== '' && isset($overrides[$id]) && is_array($overrides[$id])) {
+                $row = array_merge($row, $overrides[$id], ['id' => $id, 'source' => 'sheet']);
+            }
+            $out[] = $row;
+        }
+        return $out;
+    }
+
     private function merge(array $sheet, array $local): array
     {
         $keys = [];
@@ -194,24 +325,36 @@ class SheetService
         return is_array($data) ? $data : [];
     }
 
-    private function appendToGoogle(array $row): array
+    private function writeJson(string $file, array $data): void
+    {
+        file_put_contents($file, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    }
+
+    private function syncGoogle(string $action, array $original, array $row): array
     {
         $url = trim((string) config('apps_script_url', ''));
+        $fallback = [
+            'append' => 'บันทึกในระบบแล้ว แต่ยังไม่ได้เชื่อม Google Apps Script จึงยังไม่ถูกเพิ่มลงชีต',
+            'update' => 'แก้ไขในระบบแล้ว แต่ยังไม่ได้เชื่อม Google Sheet',
+            'delete' => 'ลบในระบบแล้ว แต่ยังไม่ได้เชื่อม Google Sheet',
+        ];
         if ($url === '') {
             return [
                 'ok' => false,
                 'mode' => 'local',
-                'message' => 'บันทึกในระบบแล้ว แต่ยังไม่ได้เชื่อม Google Apps Script จึงยังไม่ถูกเพิ่มลงชีต',
+                'message' => $fallback[$action] ?? 'บันทึกในระบบแล้ว',
             ];
         }
 
         $payload = json_encode([
-            'action' => 'append',
-            'category' => $row['category'],
-            'question' => $row['question'],
-            'keyword' => $row['keyword'],
-            'answer' => $row['answer'],
-            'keyword_back' => $row['keyword_back'],
+            'action' => $action,
+            'category' => $row['category'] ?? '',
+            'question' => $row['question'] ?? '',
+            'keyword' => $row['keyword'] ?? '',
+            'answer' => $row['answer'] ?? '',
+            'keyword_back' => $row['keyword_back'] ?? '',
+            'original_category' => $original['original_category'] ?? $original['category'] ?? '',
+            'original_question' => $original['original_question'] ?? $original['question'] ?? '',
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         $ctx = stream_context_create([
@@ -229,6 +372,11 @@ class SheetService
             ],
         ]);
         $res = @file_get_contents($url, false, $ctx);
+        $done = [
+            'append' => 'เพิ่มคำถามลง Google Sheet เรียบร้อย',
+            'update' => 'แก้ไขคำถามใน Google Sheet เรียบร้อย',
+            'delete' => 'ลบคำถามใน Google Sheet เรียบร้อย',
+        ];
         if ($res === false) {
             return [
                 'ok' => false,
@@ -241,7 +389,7 @@ class SheetService
             return [
                 'ok' => true,
                 'mode' => 'sheet',
-                'message' => 'เพิ่มคำถามลง Google Sheet เรียบร้อย',
+                'message' => $done[$action] ?? 'อัปเดต Google Sheet เรียบร้อย',
             ];
         }
         return [

@@ -26,13 +26,14 @@ $base = app_base_path();
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>เข้าสู่ระบบผู้จัดการ | SCiGENIE</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="icon" href="<?= htmlspecialchars(logo_url()) ?>">
   <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css">
 </head>
 <body>
   <div class="login-wrap">
     <form class="login-card" method="post">
       <div class="login-mark">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <img src="<?= htmlspecialchars(logo_url()) ?>" alt="SCiGENIE">
       </div>
       <h1>ผู้จัดการระบบ</h1>
       <p class="hint">เพิ่มคำถามและคีย์เวิร์ดเข้าคลัง SCiGENIE คณะวิทยาศาสตร์ มข.</p>

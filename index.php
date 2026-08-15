@@ -11,6 +11,7 @@ $base = app_base_path();
   <title>คณะวิทยาศาสตร์ มหาวิทยาลัยขอนแก่น | SCiGENIE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;family=Sarabun:wght@400;600&amp;display=swap" rel="stylesheet">
+  <link rel="icon" href="<?= htmlspecialchars(logo_url()) ?>">
   <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/site.css">
 </head>
 <body>
@@ -21,7 +22,7 @@ $base = app_base_path();
   <header class="nav">
     <div class="brand">
       <div class="brand-mark">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/></svg>
+        <img src="<?= htmlspecialchars(logo_url()) ?>" alt="SCiGENIE">
       </div>
       <div>คณะวิทยาศาสตร์ มข.<small>มหาวิทยาลัยขอนแก่น</small></div>
     </div>

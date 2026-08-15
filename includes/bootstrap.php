@@ -36,6 +36,11 @@ function app_base_path(): string
     return rtrim(str_replace('\\', '/', dirname($script)), '/');
 }
 
+function logo_url(): string
+{
+    return app_base_path() . '/assets/img/logo.jpg';
+}
+
 function json_response(array $data, int $status = 200): void
 {
     http_response_code($status);
