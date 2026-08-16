@@ -21,6 +21,12 @@ if ($id === '') {
 
 try {
     $sheet = new SheetService();
+    $current = $sheet->findById($id);
+    if ($current === null) {
+        throw new InvalidArgumentException('ไม่พบคำถามที่ต้องการแก้ไข');
+    }
+    Auth::requireCategory((string) ($current['category'] ?? ''));
+    Auth::requireCategory(trim((string) ($input['category'] ?? $current['category'] ?? '')));
     $result = $sheet->update($id, $input);
     json_response([
         'ok' => true,

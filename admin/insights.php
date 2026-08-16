@@ -47,8 +47,18 @@ function thai_when(string $iso): string
     <nav class="page-tabs" aria-label="หน้าผู้จัดการ">
       <a class="tab" href="index.php" data-tip="กลับไปเพิ่ม แก้ไข หรือลบคลังคำถาม">คลังคำถาม</a>
       <a class="tab active" href="insights.php" data-tip="หน้านี้นะ สรุปประวัติการถามและกราฟ">สรุปการถาม</a>
+      <?php if (Auth::isSuper()): ?>
+        <a class="tab" href="users.php" data-tip="กำหนดผู้มีสิทธิ์เข้าใช้ระบบ และหมวดที่ดูแล">ผู้ใช้ระบบ</a>
+      <?php endif; ?>
     </nav>
     <nav class="top-actions">
+      <?php $admin = Auth::user(); ?>
+      <div class="admin-who" title="<?= htmlspecialchars($admin['email']) ?>">
+        <?php if ($admin['picture'] !== ''): ?>
+          <img src="<?= htmlspecialchars($admin['picture']) ?>" alt="">
+        <?php endif; ?>
+        <span><?= htmlspecialchars($admin['name'] !== '' ? $admin['name'] : $admin['email']) ?></span>
+      </div>
       <a class="btn ghost" href="<?= htmlspecialchars($base) ?>/index.php" target="_blank" data-tip="เปิดวิดเจ็ตเพื่อทดลองถาม แล้วกลับมาดูสถิติ">ทดลองถาม</a>
       <a class="btn ghost" href="logout.php" data-tip="ออกจากระบบผู้จัดการ">ออกจากระบบ</a>
     </nav>

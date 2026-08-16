@@ -7,7 +7,7 @@ Auth::requireLogin();
 
 $sheet = new SheetService();
 $force = isset($_GET['refresh']);
-$faqs = $sheet->all($force);
+$faqs = Auth::filterFaqs($sheet->all($force));
 $category = trim((string) ($_GET['category'] ?? ''));
 $q = trim((string) ($_GET['q'] ?? ''));
 
@@ -26,6 +26,5 @@ json_response([
     'ok' => true,
     'total' => count($faqs),
     'items' => array_values($faqs),
-    'sheet_connected' => trim((string) config('apps_script_url')) !== '',
-    'sheet_url' => config('sheet_url'),
+    'source' => 'db',
 ]);

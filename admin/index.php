@@ -4,16 +4,12 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 Auth::requireLogin();
 
 $sheet = new SheetService();
-$categories = $sheet->categories();
-$faqs = $sheet->all();
+$categories = Auth::filterCategories($sheet->categories());
+$faqs = Auth::filterFaqs($sheet->all());
 $base = app_base_path();
 $csrf = Auth::csrf();
-$sheetConnected = trim((string) config('apps_script_url')) !== '';
-$counts = [];
-foreach ($faqs as $row) {
-    $src = $row['source'] ?? 'sheet';
-    $counts[$src] = ($counts[$src] ?? 0) + 1;
-}
+$admin = Auth::user();
+$isSuper = Auth::isSuper();
 
 function faq_payload(array $row): array
 {
@@ -36,7 +32,7 @@ function faq_payload(array $row): array
   <title>จัดการคำถาม | SCiGENIE</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="icon" href="<?= htmlspecialchars(logo_url()) ?>">
-  <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css">
+  <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css?v=<?= filemtime(dirname(__DIR__) . '/assets/css/admin.css') ?>">
 </head>
 <body class="admin-page">
   <header class="topbar-admin">
@@ -50,16 +46,22 @@ function faq_payload(array $row): array
     <div class="stat-pills" aria-label="สรุปคลังคำถาม">
       <span class="pill" data-tip="จำนวนคำถามที่ SCiGENIE นำไปตอบได้ทั้งหมด"><b id="stat-total"><?= count($faqs) ?></b> คำถาม</span>
       <span class="pill" data-tip="จำนวนหมวดที่ใช้จัดกลุ่มคำถาม"><b><?= count($categories) ?></b> หมวด</span>
-      <span class="pill" data-tip="รายการที่ดึงมาจาก Google Sheet"><b><?= (int) ($counts['sheet'] ?? 0) ?></b> จากชีต</span>
-      <span class="pill" data-tip="รายการที่เพิ่มหรือแก้ผ่านหน้านี้"><b id="stat-local"><?= (int) ($counts['local'] ?? 0) ?></b> จากระบบนี้</span>
     </div>
     <nav class="page-tabs" aria-label="หน้าผู้จัดการ">
       <a class="tab active" href="index.php" data-tip="หน้าปัจจุบัน สำหรับเพิ่ม แก้ไข ลบคำถาม">คลังคำถาม</a>
       <a class="tab" href="insights.php" data-tip="ดูว่าใครถามอะไร เมื่อไหร่ ระบบตอบอย่างไร พร้อมกราฟ">สรุปการถาม</a>
+      <?php if ($isSuper): ?>
+        <a class="tab" href="users.php" data-tip="กำหนดผู้มีสิทธิ์เข้าใช้ระบบ และหมวดที่ดูแล">ผู้ใช้ระบบ</a>
+      <?php endif; ?>
     </nav>
     <nav class="top-actions">
+      <div class="admin-who" title="<?= htmlspecialchars($admin['email']) ?>">
+        <?php if ($admin['picture'] !== ''): ?>
+          <img src="<?= htmlspecialchars($admin['picture']) ?>" alt="">
+        <?php endif; ?>
+        <span><?= htmlspecialchars($admin['name'] !== '' ? $admin['name'] : $admin['email']) ?></span>
+      </div>
       <a class="btn ghost" href="<?= htmlspecialchars($base) ?>/index.php" target="_blank" data-tip="เปิดหน้าเว็บคณะเพื่อทดลองถาม SCiGENIE">ทดลองถาม</a>
-      <a class="btn ghost" href="<?= htmlspecialchars((string) config('sheet_url')) ?>" target="_blank" rel="noopener" data-tip="เปิด Google Sheet ต้นทางของคลังคำถาม">เปิดชีต</a>
       <a class="btn ghost" href="logout.php" data-tip="ออกจากระบบผู้จัดการ">ออกจากระบบ</a>
       <button class="btn" type="button" id="btn-add" data-tip="เปิดแบบฟอร์มด้านขวาเพื่อเพิ่มคำถามใหม่เข้าคลัง">+ เพิ่มคำถาม</button>
     </nav>
@@ -153,7 +155,9 @@ function faq_payload(array $row): array
         <?php foreach ($categories as $cat): ?>
           <option value="<?= htmlspecialchars($cat['name']) ?>"><?= htmlspecialchars($cat['short']) ?> (<?= (int) $cat['count'] ?>)</option>
         <?php endforeach; ?>
+        <?php if ($isSuper): ?>
         <option value="__new__">+ เพิ่มหมวดใหม่</option>
+        <?php endif; ?>
       </select>
       <p class="field-tip" data-for="category">หมวดช่วยให้ SCiGENIE ตอบตรงเรื่องขึ้น เมื่อผู้ใช้เลือกหมวดก่อนถาม</p>
       <div id="new-cat-wrap" hidden>
@@ -187,7 +191,7 @@ function faq_payload(array $row): array
         </button>
         <button class="btn ghost" type="button" id="cancel-btn" data-tip="ปิดแบบฟอร์มและไม่บันทึกการแก้ไขครั้งนี้">ยกเลิก</button>
       </div>
-      <p class="hint save-note"><?= $sheetConnected ? 'รายการจะถูกส่งไป Google Sheet ด้วย' : 'ยังไม่ได้เชื่อมชีต ระบบจะเก็บในเครื่องแล้วเอาไปตอบได้ทันที' ?></p>
+      <p class="hint save-note">รายการจะถูกบันทึกลงฐานข้อมูล scigeniedb</p>
     </form>
   </aside>
 

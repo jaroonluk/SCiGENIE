@@ -40,7 +40,7 @@ $base = app_base_path();
       <div>
         <p style="letter-spacing:.12em;font-size:12px;color:#ffd54a;margin:0 0 8px;">SCiGENIE • ตอบคำถามอัจฉริยะ</p>
         <h1>ผู้ช่วยคณะวิทยาศาสตร์<br>พร้อมตอบทุกคำถาม</h1>
-        <p>เลือกหมวด แล้วพิมพ์คำถามได้เลย ระบบจะจับคีย์เวิร์ดจากคลังข้อมูล Google Sheet ของคณะ แล้วตอบอย่างตรงประเด็น</p>
+        <p>เลือกหมวด แล้วพิมพ์คำถามได้เลย ระบบจะจับคีย์เวิร์ดจากคลังคำถามของคณะ แล้วตอบอย่างตรงประเด็น</p>
         <p style="margin-top:18px;"><a class="btn" href="#ask" onclick="window.SCiGENIE&&window.SCiGENIE.open();">เริ่มถามคำถาม</a></p>
       </div>
       <div class="hero-card">

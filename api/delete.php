@@ -21,6 +21,11 @@ if ($id === '') {
 
 try {
     $sheet = new SheetService();
+    $current = $sheet->findById($id);
+    if ($current === null) {
+        throw new InvalidArgumentException('ไม่พบคำถามที่ต้องการลบ');
+    }
+    Auth::requireCategory((string) ($current['category'] ?? ''));
     $result = $sheet->delete($id);
     json_response([
         'ok' => true,

@@ -12,8 +12,24 @@ return [
     // วาง URL ของ Google Apps Script หลัง Deploy เป็น Web App เพื่อบันทึกลงชีตจริง
     'apps_script_url' => '',
     'cache_ttl' => 600,
-    'admin_user' => 'admin',
-    'admin_pass_hash' => '$2y$10$n2BPmpjwMKwp0JkrbPlJ2OnUl1puRswE9S7oxKFRh23CC.HhG4Pu.',
+    'google_client_id' => getenv('GOOGLE_CLIENT_ID') ?: '',
+    'google_client_secret' => getenv('GOOGLE_CLIENT_SECRET') ?: '',
+    'db_host' => getenv('SCIGENIE_DB_HOST') ?: '127.0.0.1',
+    'db_port' => (int) (getenv('SCIGENIE_DB_PORT') ?: 3306),
+    'db_name' => getenv('SCIGENIE_DB_NAME') ?: 'scigeniedb',
+    'db_user' => getenv('SCIGENIE_DB_USER') ?: 'root',
+    'db_pass' => getenv('SCIGENIE_DB_PASS') ?: '',
+    'eoffice_db_host' => getenv('EOFFICE_DB_HOST') ?: '127.0.0.1',
+    'eoffice_db_port' => (int) (getenv('EOFFICE_DB_PORT') ?: 3306),
+    'eoffice_db_name' => getenv('EOFFICE_DB_NAME') ?: 'eoffice',
+    'eoffice_db_user' => getenv('EOFFICE_DB_USER') ?: 'root',
+    'eoffice_db_pass' => getenv('EOFFICE_DB_PASS') ?: '',
+    // ผู้ดูแลระบบคนแรก เมื่อยังไม่มีรายชื่อใน scigeniedb
+    'bootstrap_super_emails' => [
+        'jaroonluk@kku.ac.th',
+    ],
+    // ต้องตรงกับ Authorized JavaScript origins ใน Google Cloud Console
+    'google_js_origin' => getenv('GOOGLE_JS_ORIGIN') ?: 'http://localhost:8081',
     'contact_phone' => '043-009-700',
     'contact_email' => 'sc.inbox@kku.ac.th',
 ];

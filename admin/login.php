@@ -2,53 +2,143 @@
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
+$host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+if (preg_match('/^(127\.0\.0\.1|\[::1\])(:\d+)?$/', $host, $m)) {
+    $port = $m[2] ?? '';
+    header('Location: http://localhost' . $port . ($_SERVER['REQUEST_URI'] ?? '/admin/login.php'));
+    exit;
+}
+
 if (Auth::check()) {
     header('Location: index.php');
     exit;
 }
 
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $user = trim((string) ($_POST['user'] ?? ''));
-    $pass = (string) ($_POST['pass'] ?? '');
-    if (Auth::login($user, $pass)) {
-        header('Location: index.php');
-        exit;
-    }
-    $error = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+$messages = [
+    'denied' => 'ยกเลิกการเข้าสู่ระบบด้วย Google',
+    'missing_code' => 'ไม่พบรหัสยืนยันจาก Google กรุณาลองใหม่',
+    'invalid_state' => 'เซสชันหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบอีกครั้ง',
+    'token_failed' => 'ยืนยันบัญชี Google ไม่สำเร็จ กรุณาลองใหม่',
+    'userinfo_failed' => 'ดึงข้อมูลบัญชี Google ไม่สำเร็จ กรุณาลองใหม่',
+    'email_unverified' => 'อีเมล Google นี้ยังไม่ได้ยืนยัน',
+    'not_in_eoffice' => 'ไม่พบบุคลากรนี้ในระบบ eoffice',
+    'eoffice_inactive' => 'สถานะบุคลากรนี้ไม่สามารถเข้าใช้งานได้',
+    'eoffice_unavailable' => 'เชื่อมฐานข้อมูลบุคลากรไม่สำเร็จ กรุณาลองใหม่',
+    'email_not_allowed' => 'อีเมลนี้ยังไม่ได้รับสิทธิ์เข้าใช้ SCiGENIE',
+    'origin_mismatch' => 'โดเมนนี้ยังไม่ได้ลงทะเบียนใน Google Cloud Console',
+    'oauth_error' => 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองใหม่',
+];
+$code = (string) ($_GET['error'] ?? '');
+$error = $messages[$code] ?? '';
+if ($error === '' && $code !== '') {
+    $error = $messages['oauth_error'];
 }
+$deniedEmail = trim((string) ($_GET['email'] ?? ''));
+if (in_array($code, ['email_not_allowed', 'not_in_eoffice', 'eoffice_inactive'], true) && $deniedEmail !== '') {
+    $error .= ' (' . $deniedEmail . ')';
+}
+
+$_SESSION['scigenie_login_csrf'] = bin2hex(random_bytes(16));
 $base = app_base_path();
+$clientId = (string) config('google_client_id');
+$csrf = (string) $_SESSION['scigenie_login_csrf'];
+$appName = (string) config('app_name', 'SCiGENIE');
+$faculty = (string) config('faculty', 'คณะวิทยาศาสตร์ มหาวิทยาลัยขอนแก่น');
 ?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>เข้าสู่ระบบผู้จัดการ | SCiGENIE</title>
+  <title>เข้าสู่ระบบ | <?= htmlspecialchars($appName) ?></title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="icon" href="<?= htmlspecialchars(logo_url()) ?>">
-  <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css">
+  <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css?v=<?= filemtime(dirname(__DIR__) . '/assets/css/admin.css') ?>">
 </head>
-<body>
-  <div class="login-wrap">
-    <form class="login-card" method="post">
+<body class="login-page">
+  <main class="login-center">
+    <div class="login-card">
       <div class="login-mark">
-        <img src="<?= htmlspecialchars(logo_url()) ?>" alt="SCiGENIE">
+        <img src="<?= htmlspecialchars(logo_url()) ?>" alt="<?= htmlspecialchars($appName) ?>">
       </div>
-      <h1>ผู้จัดการระบบ</h1>
-      <p class="hint">เพิ่มคำถามและคีย์เวิร์ดเข้าคลัง SCiGENIE คณะวิทยาศาสตร์ มข.</p>
-      <?php if ($error): ?><div class="alert err"><?= htmlspecialchars($error) ?></div><?php endif; ?>
-      <label>ชื่อผู้ใช้</label>
-      <input name="user" required autocomplete="username" value="admin">
-      <label>รหัสผ่าน</label>
-      <input name="pass" type="password" required autocomplete="current-password">
-      <button class="btn full" type="submit">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>
-        เข้าสู่ระบบ
+      <p class="login-name"><?= htmlspecialchars($appName) ?></p>
+      <p class="login-system">ระบบตอบคำถามอัจฉริยะ</p>
+      <p class="login-faculty"><?= htmlspecialchars($faculty) ?></p>
+      <hr class="login-rule">
+      <h1>เข้าสู่ระบบผู้จัดการ</h1>
+      <p class="hint">สำหรับบุคลากรที่ดูแลคลังคำถาม</p>
+      <?php if ($error): ?>
+        <div class="alert err" role="alert"><?= htmlspecialchars($error) ?></div>
+      <?php endif; ?>
+      <button class="btn-google" type="button" id="btn-google" disabled>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.46c-.28 1.5-1.13 2.77-2.4 3.62v3.01h3.89c2.27-2.09 3.54-5.17 3.54-8.87z"/>
+          <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.89-3.01c-1.08.72-2.46 1.15-4.06 1.15-3.12 0-5.76-2.11-6.71-4.94H1.28v3.11C3.26 21.3 7.31 24 12 24z"/>
+          <path fill="#FBBC05" d="M5.29 14.29A7.22 7.22 0 0 1 4.91 12c0-.79.14-1.56.38-2.29V6.6H1.28A11.99 11.99 0 0 0 0 12c0 1.94.46 3.77 1.28 5.4l4.01-3.11z"/>
+          <path fill="#EA4335" d="M12 4.75c1.76 0 3.35.61 4.6 1.8l3.45-3.45C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.28 6.6l4.01 3.11C6.24 6.86 8.88 4.75 12 4.75z"/>
+        </svg>
+        <span id="btn-google-label">เข้าสู่ระบบด้วย Google</span>
       </button>
-      <p class="hint" style="margin-top:14px;">ค่าเริ่มต้น: <code>admin</code> / <code>SciGenie@2569</code></p>
-      <p class="hint"><a href="<?= htmlspecialchars($base) ?>/index.php">กลับหน้าเว็บคณะ</a></p>
-    </form>
-  </div>
+      <p class="login-secure">เฉพาะผู้ที่ได้รับสิทธิ์</p>
+      <a class="login-back" href="<?= htmlspecialchars($base) ?>/index.php">กลับหน้าเว็บคณะ</a>
+    </div>
+  </main>
+  <script>
+    const CLIENT_ID = <?= json_encode($clientId, JSON_UNESCAPED_SLASHES) ?>;
+    const CSRF = <?= json_encode($csrf, JSON_UNESCAPED_SLASHES) ?>;
+
+    function fail(code, email) {
+      const q = new URLSearchParams({ error: code || 'oauth_error' });
+      if (email) q.set('email', email);
+      location.href = 'login.php?' + q.toString();
+    }
+
+    async function verify(body) {
+      const res = await fetch('google-verify.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ csrf: CSRF }, body))
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        location.href = data.redirect || 'index.php';
+        return;
+      }
+      fail(data && data.error, data && data.email);
+    }
+
+    function startGoogle() {
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        callback: (response) => {
+          if (response.error) {
+            const err = String(response.error);
+            if (err === 'popup_closed_by_user' || err === 'access_denied') {
+              fail('denied');
+              return;
+            }
+            if (err.indexOf('origin') !== -1) {
+              fail('origin_mismatch');
+              return;
+            }
+            fail('oauth_error');
+            return;
+          }
+          document.getElementById('btn-google-label').textContent = 'กำลังตรวจสอบบัญชี...';
+          document.getElementById('btn-google').disabled = true;
+          verify({ access_token: response.access_token });
+        }
+      });
+      const btn = document.getElementById('btn-google');
+      btn.disabled = false;
+      btn.addEventListener('click', () => {
+        document.getElementById('btn-google-label').textContent = 'กำลังเปิด Google...';
+        tokenClient.requestAccessToken();
+      });
+    }
+  </script>
+  <script src="https://accounts.google.com/gsi/client" async defer onload="startGoogle()"></script>
 </body>
 </html>

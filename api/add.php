@@ -15,6 +15,7 @@ if (!Auth::verifyCsrf($input['csrf'] ?? null)) {
 }
 
 try {
+    Auth::requireCategory(trim((string) ($input['category'] ?? '')));
     $sheet = new SheetService();
     $result = $sheet->add($input);
     json_response([

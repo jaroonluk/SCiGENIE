@@ -24,38 +24,142 @@ body {
 
 a { color: inherit; text-decoration: none; }
 
-.login-wrap {
+body.login-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 28px 16px;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(255, 213, 74, 0.55), transparent 46%),
+    radial-gradient(circle at 12% 88%, rgba(244, 196, 48, 0.22), transparent 32%),
+    radial-gradient(circle at 90% 18%, rgba(255, 248, 231, 0.9), transparent 28%),
+    linear-gradient(180deg, #fff4c4 0%, #fff8e7 42%, #fbe7a8 100%);
+  overflow-x: hidden;
+  color: var(--sc-ink);
+}
+.login-center {
+  width: min(440px, 100%);
 }
 .login-card {
-  width: min(440px, 100%);
-  background: #fff;
-  border: 1px solid var(--sc-line);
-  border-radius: 24px;
-  padding: 28px;
-  box-shadow: 0 20px 50px rgba(92, 67, 20, 0.12);
+  width: 100%;
+  max-width: 440px;
+  min-width: 0;
+  background: rgba(255, 253, 246, 0.92);
+  border: 1px solid rgba(212, 160, 23, 0.22);
+  border-radius: 28px;
+  padding: 36px 32px 28px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 18px 40px rgba(184, 134, 11, 0.16);
+  text-align: center;
+  position: relative;
+  backdrop-filter: blur(8px);
 }
-.login-card h1 { margin: 8px 0 4px; font-size: 26px; }
+.login-card::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 0;
+  height: 5px;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(90deg, var(--sc-yellow-bright), var(--sc-yellow), var(--sc-gold));
+}
+.login-card h1,
+.login-card h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sc-ink);
+}
+.login-card .hint {
+  margin: 0 auto;
+  max-width: 28ch;
+  color: var(--sc-muted);
+}
+.login-name {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--sc-ink);
+}
+.login-system {
+  margin: 0 auto 6px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--sc-brown);
+}
+.login-faculty {
+  margin: 0 auto;
+  font-size: 13px;
+  color: var(--sc-muted);
+  line-height: 1.5;
+}
+.login-rule {
+  width: 64px;
+  height: 3px;
+  margin: 18px auto;
+  border: 0;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--sc-yellow-bright), var(--sc-gold));
+}
 .login-mark {
-  width: 88px;
-  height: 88px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
   background: #fff;
   border: 3px solid var(--sc-yellow);
   display: grid;
   place-items: center;
   overflow: hidden;
-  padding: 0;
+  margin: 0 auto 16px;
+  box-shadow: 0 10px 24px rgba(212, 160, 23, 0.2);
 }
 .login-mark img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.hint { color: var(--sc-muted); font-size: 13px; }
+.login-card .alert {
+  text-align: left;
+  margin: 16px 0 0;
+}
+.login-secure {
+  margin: 14px 0 0;
+  color: var(--sc-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.login-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  color: var(--sc-brown);
+  font-size: 13px;
+  font-weight: 600;
+}
+.login-back:hover { color: var(--sc-ink); }
+.oauth-help {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--sc-line);
+  color: var(--sc-muted);
+  font-size: 12px;
+  text-align: center;
+}
+.oauth-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+.oauth-help summary::-webkit-details-marker { display: none; }
+.oauth-help p { margin: 8px 0 0; line-height: 1.55; text-align: left; }
+.hint { color: var(--sc-muted); font-size: 13px; line-height: 1.55; }
 label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
 input, select, textarea {
   width: 100%;
@@ -86,6 +190,58 @@ input:focus, select:focus, textarea:focus {
 }
 .btn.full { width: 100%; margin-top: 16px; }
 .btn.ghost { background: #fff; border: 1px solid var(--sc-line); }
+.btn-google {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 18px;
+  border: 1px solid #dadce0;
+  border-radius: 14px;
+  padding: 13px 14px;
+  font: inherit;
+  font-weight: 700;
+  color: #3c4043;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12);
+}
+.login-page .btn-google {
+  margin-top: 20px;
+  border-color: rgba(212, 160, 23, 0.28);
+  box-shadow: 0 6px 16px rgba(212, 160, 23, 0.12);
+}
+.btn-google:hover:not(:disabled) {
+  background: #fffdf6;
+  border-color: var(--sc-gold);
+}
+.btn-google:disabled { opacity: 0.6; cursor: wait; }
+.admin-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: rgba(255, 248, 231, 0.1);
+  border: 1px solid rgba(244, 196, 48, 0.28);
+  color: #efe3c4;
+  font-size: 12px;
+  font-weight: 600;
+}
+.admin-who img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+}
+.admin-who span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .alert {
   background: #fff3c2;
   border: 1px solid var(--sc-gold);
@@ -444,12 +600,84 @@ label small { font-weight: 500; color: var(--sc-muted); }
 .no-dot { color: #9a3412; font-weight: 700; font-size: 12px; }
 .insights-page .coach { position: sticky; bottom: 0; }
 
+.users-wrap {
+  grid-template-columns: minmax(280px, 380px) 1fr;
+  display: grid;
+  gap: 14px;
+  align-items: start;
+}
+.user-form-card { position: relative; }
+.cat-checks {
+  border: 1px solid var(--sc-line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+}
+.cat-checks legend { font-size: 13px; font-weight: 700; }
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 500;
+}
+.check input { width: auto; }
+.user-suggest {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 10px;
+  background: #fff;
+  border: 1px solid var(--sc-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.suggest-item,
+.suggest-empty {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  border: 0;
+  background: #fff;
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.suggest-item:hover { background: var(--sc-cream); }
+.suggest-item span { color: var(--sc-muted); font-size: 12px; }
+.suggest-empty { color: var(--sc-muted); cursor: default; }
+
 @media (max-width: 1100px) {
   .admin-page { height: auto; overflow: auto; }
   .topbar-admin { flex-wrap: wrap; }
   .brand-mini { min-width: 0; }
   .stat-pills { display: none; }
   .list-pane { min-height: 70vh; }
-  .kpi-grid, .chart-grid, .top-layout { grid-template-columns: 1fr; }
+  .kpi-grid, .chart-grid, .top-layout, .users-wrap { grid-template-columns: 1fr; }
   .page-tabs { width: 100%; }
 }
+
+body.admin-page:not(.insights-page) .brand-mini strong { font-size: 16px; }
+body.admin-page:not(.insights-page) .brand-mini span { font-size: 12px; }
+body.admin-page:not(.insights-page) .pill { font-size: 13px; }
+body.admin-page:not(.insights-page) .admin-who { font-size: 13px; }
+body.admin-page:not(.insights-page) .tab { font-size: 14px; }
+body.admin-page:not(.insights-page) .btn { font-size: 15px; }
+body.admin-page:not(.insights-page) .field-inline span { font-size: 12px; }
+body.admin-page:not(.insights-page) .result-count { font-size: 13px; }
+body.admin-page:not(.insights-page) .faq-table { font-size: 14px; }
+body.admin-page:not(.insights-page) .linkish { font-size: 12px; }
+body.admin-page:not(.insights-page) .tag { font-size: 12px; }
+body.admin-page:not(.insights-page) .coach { font-size: 14px; }
+body.admin-page:not(.insights-page) .drawer-head h2 { font-size: 20px; }
+body.admin-page:not(.insights-page) .drawer-body label { font-size: 14px; }
+body.admin-page:not(.insights-page) .hint { font-size: 14px; }
+body.admin-page:not(.insights-page) .field-tip { font-size: 13px; }
+body.admin-page:not(.insights-page) .kw-chip { font-size: 12px; }
+body.admin-page:not(.insights-page) .alert { font-size: 14px; }
+body.admin-page:not(.insights-page) input,
+body.admin-page:not(.insights-page) select,
+body.admin-page:not(.insights-page) textarea { font-size: 15px; }

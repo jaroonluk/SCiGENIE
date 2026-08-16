@@ -36,6 +36,16 @@ function app_base_path(): string
     return rtrim(str_replace('\\', '/', dirname($script)), '/');
 }
 
+function app_base_url(): string
+{
+    $forwarded = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    $https = $forwarded === 'https'
+        || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $scheme = $https ? 'https' : 'http';
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    return $scheme . '://' . $host . app_base_path();
+}
+
 function logo_url(): string
 {
     return app_base_path() . '/assets/img/logo.jpg';
