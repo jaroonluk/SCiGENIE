@@ -30,6 +30,9 @@ return [
     ],
     // ต้องตรงกับ Authorized JavaScript origins ใน Google Cloud Console
     'google_js_origin' => getenv('GOOGLE_JS_ORIGIN') ?: 'http://localhost:8081',
+    'line_channel_secret' => getenv('LINE_CHANNEL_SECRET') ?: '',
+    'line_channel_access_token' => getenv('LINE_CHANNEL_ACCESS_TOKEN') ?: '',
+    'line_webhook_url' => getenv('LINE_WEBHOOK_URL') ?: '',
     'contact_phone' => '043-009-700',
     'contact_email' => 'sc.inbox@kku.ac.th',
 ];

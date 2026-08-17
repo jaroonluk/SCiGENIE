@@ -19,6 +19,7 @@ $result = $matcher->ask($sheet->all(), $question, $category);
 $result['ok'] = true;
 $result['category'] = $category;
 $result['question'] = $question;
+$result['reply_text'] = LineBot::replyTextForAsk($result);
 
 if ($question !== '') {
     $item = $result['item'] ?? [];
