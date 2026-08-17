@@ -41,7 +41,6 @@ if (in_array($code, ['email_not_allowed', 'not_in_eoffice', 'eoffice_inactive'],
 $_SESSION['scigenie_login_csrf'] = bin2hex(random_bytes(16));
 $base = app_base_path();
 $clientId = (string) config('google_client_id');
-$csrf = (string) $_SESSION['scigenie_login_csrf'];
 $appName = (string) config('app_name', 'SCiGENIE');
 $faculty = (string) config('faculty', 'คณะวิทยาศาสตร์ มหาวิทยาลัยขอนแก่น');
 ?>
@@ -70,75 +69,22 @@ $faculty = (string) config('faculty', 'คณะวิทยาศาสตร�
       <?php if ($error): ?>
         <div class="alert err" role="alert"><?= htmlspecialchars($error) ?></div>
       <?php endif; ?>
-      <button class="btn-google" type="button" id="btn-google" disabled>
+      <?php if ($clientId === ''): ?>
+        <div class="alert err" role="alert">ยังไม่ได้ตั้งค่า Google Client ID บนเซิร์ฟเวอร์</div>
+      <?php else: ?>
+      <a class="btn-google" href="<?= htmlspecialchars($base) ?>/auth/google/start.php">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
           <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.46c-.28 1.5-1.13 2.77-2.4 3.62v3.01h3.89c2.27-2.09 3.54-5.17 3.54-8.87z"/>
           <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.89-3.01c-1.08.72-2.46 1.15-4.06 1.15-3.12 0-5.76-2.11-6.71-4.94H1.28v3.11C3.26 21.3 7.31 24 12 24z"/>
           <path fill="#FBBC05" d="M5.29 14.29A7.22 7.22 0 0 1 4.91 12c0-.79.14-1.56.38-2.29V6.6H1.28A11.99 11.99 0 0 0 0 12c0 1.94.46 3.77 1.28 5.4l4.01-3.11z"/>
           <path fill="#EA4335" d="M12 4.75c1.76 0 3.35.61 4.6 1.8l3.45-3.45C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.28 6.6l4.01 3.11C6.24 6.86 8.88 4.75 12 4.75z"/>
         </svg>
-        <span id="btn-google-label">เข้าสู่ระบบด้วย Google</span>
-      </button>
+        <span>เข้าสู่ระบบด้วย Google</span>
+      </a>
+      <?php endif; ?>
       <p class="login-secure">เฉพาะผู้ที่ได้รับสิทธิ์</p>
       <a class="login-back" href="<?= htmlspecialchars($base) ?>/index.php">กลับหน้าเว็บคณะ</a>
     </div>
   </main>
-  <script>
-    const CLIENT_ID = <?= json_encode($clientId, JSON_UNESCAPED_SLASHES) ?>;
-    const CSRF = <?= json_encode($csrf, JSON_UNESCAPED_SLASHES) ?>;
-
-    function fail(code, email) {
-      const q = new URLSearchParams({ error: code || 'oauth_error' });
-      if (email) q.set('email', email);
-      location.href = 'login.php?' + q.toString();
-    }
-
-    async function verify(body) {
-      const res = await fetch('google-verify.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({ csrf: CSRF }, body))
-      });
-      const data = await res.json();
-      if (data && data.ok) {
-        location.href = data.redirect || 'index.php';
-        return;
-      }
-      fail(data && data.error, data && data.email);
-    }
-
-    function startGoogle() {
-      const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: 'openid email profile',
-        prompt: 'select_account',
-        callback: (response) => {
-          if (response.error) {
-            const err = String(response.error);
-            if (err === 'popup_closed_by_user' || err === 'access_denied') {
-              fail('denied');
-              return;
-            }
-            if (err.indexOf('origin') !== -1) {
-              fail('origin_mismatch');
-              return;
-            }
-            fail('oauth_error');
-            return;
-          }
-          document.getElementById('btn-google-label').textContent = 'กำลังตรวจสอบบัญชี...';
-          document.getElementById('btn-google').disabled = true;
-          verify({ access_token: response.access_token });
-        }
-      });
-      const btn = document.getElementById('btn-google');
-      btn.disabled = false;
-      btn.addEventListener('click', () => {
-        document.getElementById('btn-google-label').textContent = 'กำลังเปิด Google...';
-        tokenClient.requestAccessToken();
-      });
-    }
-  </script>
-  <script src="https://accounts.google.com/gsi/client" async defer onload="startGoogle()"></script>
 </body>
 </html>

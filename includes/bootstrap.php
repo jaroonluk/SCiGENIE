@@ -2,7 +2,19 @@
 
 declare(strict_types=1);
 
+function request_is_https(): bool
+{
+    $forwarded = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    return $forwarded === 'https'
+        || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+}
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_samesite', 'Lax');
+    if (request_is_https()) {
+        ini_set('session.cookie_secure', '1');
+    }
     session_start();
 }
 
@@ -30,20 +42,39 @@ function config(?string $key = null, mixed $default = null): mixed
 function app_base_path(): string
 {
     $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
-    if (preg_match('#/(api|admin)/#', $script)) {
-        return preg_replace('#/(api|admin)/.*$#', '', $script) ?: '';
+    if (preg_match('#/(api|admin|auth)/#', $script)) {
+        return preg_replace('#/(api|admin|auth)/.*$#', '', $script) ?: '';
     }
     return rtrim(str_replace('\\', '/', dirname($script)), '/');
 }
 
 function app_base_url(): string
 {
-    $forwarded = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
-    $https = $forwarded === 'https'
-        || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-    $scheme = $https ? 'https' : 'http';
+    $scheme = request_is_https() ? 'https' : 'http';
     $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
     return $scheme . '://' . $host . app_base_path();
+}
+
+function google_js_origin(): string
+{
+    $fromEnv = trim((string) (getenv('GOOGLE_JS_ORIGIN') ?: config('google_js_origin', '')));
+    if ($fromEnv !== '') {
+        return rtrim($fromEnv, '/');
+    }
+    $parts = parse_url(app_base_url()) ?: [];
+    $scheme = (string) ($parts['scheme'] ?? 'https');
+    $host = (string) ($parts['host'] ?? '');
+    $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+    return $scheme . '://' . $host . $port;
+}
+
+function google_redirect_uri(): string
+{
+    $fromEnv = trim((string) (getenv('GOOGLE_REDIRECT_URI') ?: config('google_redirect_uri', '')));
+    if ($fromEnv !== '') {
+        return $fromEnv;
+    }
+    return rtrim(app_base_url(), '/') . '/auth/google/callback.php';
 }
 
 function logo_url(): string

@@ -28,8 +28,9 @@ return [
     'bootstrap_super_emails' => [
         'jaroonluk@kku.ac.th',
     ],
-    // ต้องตรงกับ Authorized JavaScript origins ใน Google Cloud Console
-    'google_js_origin' => getenv('GOOGLE_JS_ORIGIN') ?: 'http://localhost:8081',
+    // ว่าง = ใช้ origin ของเว็บปัจจุบัน เช่น https://sci.kku.ac.th
+    'google_js_origin' => getenv('GOOGLE_JS_ORIGIN') ?: '',
+    'google_redirect_uri' => getenv('GOOGLE_REDIRECT_URI') ?: '',
     'line_channel_secret' => getenv('LINE_CHANNEL_SECRET') ?: '',
     'line_channel_access_token' => getenv('LINE_CHANNEL_ACCESS_TOKEN') ?: '',
     'line_webhook_url' => getenv('LINE_WEBHOOK_URL') ?: '',

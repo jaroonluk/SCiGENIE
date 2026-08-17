@@ -4,6 +4,50 @@ declare(strict_types=1);
 
 class GoogleOAuth
 {
+    public static function authorizeUrl(string $state): string
+    {
+        $clientId = (string) config('google_client_id');
+        if ($clientId === '') {
+            throw new RuntimeException('oauth_error');
+        }
+        return 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
+            'client_id' => $clientId,
+            'redirect_uri' => google_redirect_uri(),
+            'response_type' => 'code',
+            'scope' => 'openid email profile',
+            'prompt' => 'select_account',
+            'access_type' => 'online',
+            'include_granted_scopes' => 'true',
+            'state' => $state,
+        ], '', '&', PHP_QUERY_RFC3986);
+    }
+
+    public static function profileFromCode(string $code): array
+    {
+        $code = trim($code);
+        $clientId = (string) config('google_client_id');
+        $secret = (string) config('google_client_secret');
+        if ($code === '' || $clientId === '' || $secret === '') {
+            throw new RuntimeException('token_failed');
+        }
+
+        $token = self::httpJson('https://oauth2.googleapis.com/token', [
+            'method' => 'POST',
+            'fields' => [
+                'code' => $code,
+                'client_id' => $clientId,
+                'client_secret' => $secret,
+                'redirect_uri' => google_redirect_uri(),
+                'grant_type' => 'authorization_code',
+            ],
+        ]);
+        $access = trim((string) ($token['access_token'] ?? ''));
+        if ($access === '') {
+            throw new RuntimeException('token_failed');
+        }
+        return self::profileFromAccessToken($access);
+    }
+
     public static function profileFromAccessToken(string $accessToken): array
     {
         $accessToken = trim($accessToken);
