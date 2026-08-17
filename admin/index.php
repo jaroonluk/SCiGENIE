@@ -32,7 +32,7 @@ function faq_payload(array $row): array
   <title>จัดการคำถาม | SCiGENIE</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="icon" href="<?= htmlspecialchars(logo_url()) ?>">
-  <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css?v=<?= filemtime(dirname(__DIR__) . '/assets/css/admin.css') ?>">
+  <link rel="stylesheet" href="../assets/css/admin.css?v=<?= htmlspecialchars(asset_version('assets/css/admin.css')) ?>">
 </head>
 <body class="admin-page">
   <header class="topbar-admin">
@@ -196,6 +196,6 @@ function faq_payload(array $row): array
   </aside>
 
   <div id="list-msg" class="toast" hidden></div>
-  <script src="<?= htmlspecialchars($base) ?>/assets/js/admin.js"></script>
+  <script src="../assets/js/admin.js?v=<?= htmlspecialchars(asset_version('assets/js/admin.js')) ?>"></script>
 </body>
 </html>

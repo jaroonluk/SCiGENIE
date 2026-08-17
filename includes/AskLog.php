@@ -10,7 +10,7 @@ class AskLog
     {
         $dir = dirname(__DIR__) . '/data';
         if (!is_dir($dir)) {
-            mkdir($dir, 0777, true);
+            @mkdir($dir, 0775, true);
         }
         $this->file = $dir . '/ask-log.jsonl';
     }
@@ -28,11 +28,11 @@ class AskLog
             'answer' => mb_substr(trim((string) ($entry['answer'] ?? '')), 0, 600),
             'sample' => !empty($entry['sample']),
         ];
-        if ($row['question'] === '') {
+        if ($row['question'] === '' || !$this->canWrite()) {
             return;
         }
         $line = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
-        $fp = fopen($this->file, 'ab');
+        $fp = @fopen($this->file, 'ab');
         if ($fp === false) {
             return;
         }
@@ -40,6 +40,15 @@ class AskLog
         fwrite($fp, $line);
         flock($fp, LOCK_UN);
         fclose($fp);
+    }
+
+    private function canWrite(): bool
+    {
+        if (is_file($this->file)) {
+            return is_writable($this->file);
+        }
+        $dir = dirname($this->file);
+        return is_dir($dir) && is_writable($dir);
     }
 
     public function all(int $limit = 2000): array

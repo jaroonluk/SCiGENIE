@@ -32,7 +32,7 @@ function thai_when(string $iso): string
   <title>สรุปการถาม | SCiGENIE</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="icon" href="<?= htmlspecialchars(logo_url()) ?>">
-  <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css">
+  <link rel="stylesheet" href="../assets/css/admin.css?v=<?= htmlspecialchars(asset_version('assets/css/admin.css')) ?>">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body class="admin-page insights-page">
@@ -175,6 +175,6 @@ function thai_when(string $iso): string
   <script>
     window.SCIGENIE_INSIGHTS = <?= json_encode(['summary' => $summary, 'rows' => array_slice($rows, 0, 300)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
   </script>
-  <script src="<?= htmlspecialchars($base) ?>/assets/js/insights.js"></script>
+  <script src="../assets/js/insights.js?v=<?= htmlspecialchars(asset_version('assets/js/insights.js')) ?>"></script>
 </body>
 </html>

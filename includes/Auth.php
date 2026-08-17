@@ -57,6 +57,7 @@ class Auth
             $faq->ensureReady();
             $admin = self::resolveAdmin($email, $staff, $profile);
         } catch (Throwable $e) {
+            error_log('SCiGENIE login: ' . $e->getMessage());
             return ['ok' => false, 'error' => 'oauth_error', 'email' => $email];
         }
 

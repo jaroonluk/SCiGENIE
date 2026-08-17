@@ -19,18 +19,23 @@ $result = $matcher->ask($sheet->all(), $question, $category);
 $result['ok'] = true;
 $result['category'] = $category;
 $result['question'] = $question;
+$result['reply_text'] = LineBot::replyTextForAsk($result);
 
 if ($question !== '') {
-    $item = $result['item'] ?? [];
-    $log = new AskLog();
-    $log->record([
-        'visitor' => $visitor,
-        'category' => $category,
-        'question' => $question,
-        'matched' => !empty($result['matched']),
-        'faq' => $item['question'] ?? '',
-        'answer' => $item['answer'] ?? ($result['message'] ?? ''),
-    ]);
+    try {
+        $item = $result['item'] ?? [];
+        $log = new AskLog();
+        $log->record([
+            'visitor' => $visitor,
+            'category' => $category,
+            'question' => $question,
+            'matched' => !empty($result['matched']),
+            'faq' => $item['question'] ?? '',
+            'answer' => $item['answer'] ?? ($result['message'] ?? ''),
+        ]);
+    } catch (Throwable $e) {
+        error_log('SCiGENIE ask log failed: ' . $e->getMessage());
+    }
 }
 
 json_response($result);

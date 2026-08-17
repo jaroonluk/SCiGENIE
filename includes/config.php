@@ -12,6 +12,7 @@ return [
     // วาง URL ของ Google Apps Script หลัง Deploy เป็น Web App เพื่อบันทึกลงชีตจริง
     'apps_script_url' => '',
     'cache_ttl' => 600,
+    'app_base_path' => getenv('APP_BASE_PATH') ?: '',
     'google_client_id' => getenv('GOOGLE_CLIENT_ID') ?: '',
     'google_client_secret' => getenv('GOOGLE_CLIENT_SECRET') ?: '',
     'db_host' => getenv('SCIGENIE_DB_HOST') ?: '127.0.0.1',
@@ -28,8 +29,12 @@ return [
     'bootstrap_super_emails' => [
         'jaroonluk@kku.ac.th',
     ],
-    // ต้องตรงกับ Authorized JavaScript origins ใน Google Cloud Console
-    'google_js_origin' => getenv('GOOGLE_JS_ORIGIN') ?: 'http://localhost:8081',
+    // ว่าง = ใช้ origin ของเว็บปัจจุบัน เช่น https://sci.kku.ac.th
+    'google_js_origin' => getenv('GOOGLE_JS_ORIGIN') ?: '',
+    'google_redirect_uri' => getenv('GOOGLE_REDIRECT_URI') ?: '',
+    'line_channel_secret' => getenv('LINE_CHANNEL_SECRET') ?: '',
+    'line_channel_access_token' => getenv('LINE_CHANNEL_ACCESS_TOKEN') ?: '',
+    'line_webhook_url' => getenv('LINE_WEBHOOK_URL') ?: '',
     'contact_phone' => '043-009-700',
     'contact_email' => 'sc.inbox@kku.ac.th',
 ];

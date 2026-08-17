@@ -20,6 +20,10 @@ services:
       EOFFICE_DB_PASS: ${EOFFICE_DB_PASS:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
+      LINE_WEBHOOK_URL: ${LINE_WEBHOOK_URL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

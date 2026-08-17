@@ -5,7 +5,12 @@ data/faq-local.json
 data/faq-cache.meta.json
 data/faq-overrides.json
 data/ask-log.jsonl
+data/line-sessions.json
+.idea/
 tools/sheet.csv
 Thumbs.db
 Desktop.ini
 .DS_Store
+include/config.php
+.env
+
