@@ -10,7 +10,7 @@ class AskLog
     {
         $dir = dirname(__DIR__) . '/data';
         if (!is_dir($dir)) {
-            mkdir($dir, 0777, true);
+            @mkdir($dir, 0775, true);
         }
         $this->file = $dir . '/ask-log.jsonl';
     }
@@ -28,11 +28,11 @@ class AskLog
             'answer' => mb_substr(trim((string) ($entry['answer'] ?? '')), 0, 600),
             'sample' => !empty($entry['sample']),
         ];
-        if ($row['question'] === '') {
+        if ($row['question'] === '' || !$this->canWrite()) {
             return;
         }
         $line = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
-        $fp = fopen($this->file, 'ab');
+        $fp = @fopen($this->file, 'ab');
         if ($fp === false) {
             return;
         }
@@ -42,7 +42,16 @@ class AskLog
         fclose($fp);
     }
 
-    public function all(int $limit = 2000): array
+    private function canWrite(): bool
+    {
+        if (is_file($this->file)) {
+            return is_writable($this->file);
+        }
+        $dir = dirname($this->file);
+        return is_dir($dir) && is_writable($dir);
+    }
+
+    public function all(int $limit = 2000, bool $realOnly = true): array
     {
         if (!is_file($this->file)) {
             return [];
@@ -51,9 +60,13 @@ class AskLog
         $rows = [];
         foreach ($lines as $line) {
             $row = json_decode($line, true);
-            if (is_array($row) && !empty($row['question'])) {
-                $rows[] = $row;
+            if (!is_array($row) || empty($row['question'])) {
+                continue;
             }
+            if ($realOnly && !empty($row['sample'])) {
+                continue;
+            }
+            $rows[] = $row;
         }
         if (count($rows) > $limit) {
             $rows = array_slice($rows, -$limit);
@@ -131,7 +144,53 @@ class AskLog
                 'values' => array_values($byHour),
             ],
             'top' => $top,
+            'unmatched_groups' => $this->grouped($filtered, false),
+            'matched_groups' => $this->grouped($filtered, true),
         ];
+    }
+
+    public function grouped(array $rows, bool $matched, int $limit = 80): array
+    {
+        $buckets = [];
+        foreach ($rows as $row) {
+            if (!empty($row['matched']) !== $matched) {
+                continue;
+            }
+            $question = trim((string) ($row['question'] ?? ''));
+            $faq = trim((string) ($row['faq'] ?? ''));
+            $label = $matched ? ($faq !== '' ? $faq : $question) : $question;
+            $key = mb_strtolower(preg_replace('/\s+/u', ' ', $label) ?? $label);
+            if ($key === '') {
+                continue;
+            }
+            if (!isset($buckets[$key])) {
+                $buckets[$key] = [
+                    'question' => $label,
+                    'category' => (string) ($row['category'] ?? ''),
+                    'count' => 0,
+                    'last_time' => (string) ($row['time'] ?? ''),
+                    'samples' => [],
+                    'faq' => $faq,
+                ];
+            }
+            $buckets[$key]['count']++;
+            $ts = strtotime((string) ($row['time'] ?? '')) ?: 0;
+            $last = strtotime($buckets[$key]['last_time']) ?: 0;
+            if ($ts >= $last) {
+                $buckets[$key]['last_time'] = (string) ($row['time'] ?? '');
+                $buckets[$key]['question'] = $label;
+                $buckets[$key]['category'] = (string) ($row['category'] ?? '');
+                $buckets[$key]['faq'] = $faq;
+            }
+            if ($question !== '' && count($buckets[$key]['samples']) < 4 && !in_array($question, $buckets[$key]['samples'], true)) {
+                $buckets[$key]['samples'][] = $question;
+            }
+        }
+        $out = array_values($buckets);
+        usort($out, static function ($a, $b) {
+            return $b['count'] <=> $a['count'] ?: strcmp((string) $b['last_time'], (string) $a['last_time']);
+        });
+        return array_slice($out, 0, $limit);
     }
 
     public function seedIfEmpty(array $faqs): void
@@ -158,12 +217,90 @@ class AskLog
                 'question' => $matched ? (string) $faq['question'] : 'ขอข้อมูลเพิ่มเติมหน่อยค่ะ',
                 'matched' => $matched,
                 'faq' => $matched ? (string) $faq['question'] : '',
-                'answer' => mb_substr($matched ? (string) $faq['answer'] : 'ยังไม่พบคำตอบที่ตรงกับคำถามนี้', 0, 600),
+                'answer' => mb_substr($matched ? (string) $faq['answer'] : Matcher::noMatchMessage(), 0, 600),
                 'sample' => true,
             ];
             $lines[] = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
         file_put_contents($this->file, implode("\n", $lines) . "\n");
+    }
+
+    // --- Admin activity log ---
+
+    private string $adminFile;
+
+    private function adminLogFile(): string
+    {
+        if (!isset($this->adminFile)) {
+            $this->adminFile = dirname(__DIR__) . '/data/admin-log.jsonl';
+        }
+        return $this->adminFile;
+    }
+
+    public function recordAdmin(string $action, array $detail = []): void
+    {
+        $row = [
+            'id' => uniqid('adm-', true),
+            'time' => date('c'),
+            'admin_email' => (string) ($_SESSION['scigenie_admin'] ?? ''),
+            'admin_name' => (string) ($_SESSION['scigenie_admin_name'] ?? ''),
+            'admin_role' => (string) ($_SESSION['scigenie_admin_role'] ?? ''),
+            'action' => $action,
+            'detail' => $detail,
+        ];
+        $file = $this->adminLogFile();
+        $dir = dirname($file);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        $line = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+        $fp = @fopen($file, 'ab');
+        if ($fp === false) {
+            return;
+        }
+        flock($fp, LOCK_EX);
+        fwrite($fp, $line);
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+
+    public function adminLog(int $limit = 200): array
+    {
+        $file = $this->adminLogFile();
+        if (!is_file($file)) {
+            return [];
+        }
+        $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        $rows = [];
+        foreach ($lines as $line) {
+            $row = json_decode($line, true);
+            if (is_array($row)) {
+                $rows[] = $row;
+            }
+        }
+        if (count($rows) > $limit) {
+            $rows = array_slice($rows, -$limit);
+        }
+        return array_reverse($rows);
+    }
+
+    public static function actionLabel(string $action): string
+    {
+        return match ($action) {
+            'login' => 'เข้าสู่ระบบ',
+            'faq_add' => 'เพิ่มคำถาม',
+            'faq_edit' => 'แก้ไขคำถาม',
+            'faq_delete' => 'ลบคำถาม',
+            'user_add' => 'เพิ่มผู้ใช้',
+            'user_edit' => 'แก้ไขผู้ใช้',
+            'user_delete' => 'ลบผู้ใช้',
+            default => $action,
+        };
+    }
+
+    public static function roleLabel(string $role): string
+    {
+        return $role === 'super' ? 'ผู้ดูแลระบบ' : 'ผู้จัดการหมวด';
     }
 
     public function visitorLabel(string $raw): string

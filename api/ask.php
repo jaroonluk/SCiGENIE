@@ -9,9 +9,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $input = $_SERVER['REQUEST_METHOD'] === 'POST' ? request_json() : $_GET;
-$question = trim((string) ($input['question'] ?? ''));
+$question = trim((string) ($input['question'] ?? $input['text'] ?? ''));
 $category = trim((string) ($input['category'] ?? ''));
 $visitor = trim((string) ($input['visitor'] ?? ''));
+$channel = strtolower(trim((string) ($input['channel'] ?? $input['source'] ?? '')));
+$userId = trim((string) ($input['user_id'] ?? $input['userId'] ?? ''));
+
+if ($channel === 'line' || $userId !== '') {
+    $out = LineBot::processForApi($userId !== '' ? $userId : ($visitor !== '' ? $visitor : 'line-guest'), $question);
+    json_response([
+        'ok' => true,
+        'question' => $question,
+        'category' => $out['category'],
+        'reply_text' => $out['reply_text'],
+    ]);
+}
 
 $sheet = new SheetService();
 $matcher = new Matcher();

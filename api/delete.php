@@ -26,6 +26,11 @@ try {
         throw new InvalidArgumentException('ไม่พบคำถามที่ต้องการลบ');
     }
     Auth::requireCategory((string) ($current['category'] ?? ''));
+    (new AskLog())->recordAdmin('faq_delete', [
+        'id' => $id,
+        'category' => (string) ($current['category'] ?? ''),
+        'question' => mb_substr(trim((string) ($current['question'] ?? '')), 0, 120),
+    ]);
     $result = $sheet->delete($id);
     json_response([
         'ok' => true,

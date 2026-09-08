@@ -57,6 +57,7 @@ class Auth
             $faq->ensureReady();
             $admin = self::resolveAdmin($email, $staff, $profile);
         } catch (Throwable $e) {
+            error_log('SCiGENIE login: ' . $e->getMessage());
             return ['ok' => false, 'error' => 'oauth_error', 'email' => $email];
         }
 
@@ -84,6 +85,8 @@ class Auth
             'username' => (string) ($staff['username'] ?? ''),
             'id' => (int) $admin['id'],
         ]);
+
+        (new AskLog())->recordAdmin('login', ['email' => $email]);
 
         return ['ok' => true];
     }
@@ -116,6 +119,23 @@ class Auth
         self::requireLogin();
         if (!self::canManageCategory($name)) {
             json_response(['ok' => false, 'error' => 'ไม่มีสิทธิ์จัดการหมวดนี้'], 403);
+        }
+    }
+
+    public static function canEdit(): bool
+    {
+        return self::isSuper();
+    }
+
+    public static function requireEdit(): void
+    {
+        self::requireLogin();
+        if (!self::canEdit()) {
+            if (self::isApi()) {
+                json_response(['ok' => false, 'error' => 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขคลังคำถามได้'], 403);
+            }
+            header('Location: ' . app_base_path() . '/admin/index.php');
+            exit;
         }
     }
 
@@ -159,6 +179,18 @@ class Auth
     {
         return is_string($token) && isset($_SESSION['scigenie_csrf'])
             && hash_equals($_SESSION['scigenie_csrf'], $token);
+    }
+
+    public static function filterAskRows(array $rows): array
+    {
+        $allowed = self::allowedCategories();
+        if ($allowed === null) {
+            return $rows;
+        }
+        return array_values(array_filter(
+            $rows,
+            static fn ($row) => in_array((string) ($row['category'] ?? ''), $allowed, true)
+        ));
     }
 
     public static function filterFaqs(array $faqs): array

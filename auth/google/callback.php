@@ -2,8 +2,8 @@
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
 
-$login = app_base_path() . '/admin/login.php';
-$admin = app_base_path() . '/admin/index.php';
+$login = '../../admin/login.php';
+$admin = '../../admin/index.php';
 
 function oauth_fail(string $login, string $code, string $email = ''): void
 {

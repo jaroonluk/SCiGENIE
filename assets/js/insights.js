@@ -1,10 +1,12 @@
 (function () {
-  const DEFAULT = "ชี้ที่กราฟหรือแถวในตาราง เพื่อดูคำอธิบาย กด 7 / 14 / 30 วัน เพื่อเปลี่ยนช่วงสถิติ";
+  const DEFAULT = "เริ่มที่แท็บ «ไม่พบคำตอบ» เพื่อดูคำถามที่ควรถูกเพิ่มในคลัง";
   const coachText = document.getElementById("coach-text");
   const data = window.SCIGENIE_INSIGHTS || { summary: {}, rows: [] };
   const gold = "#d4a017";
   const yellow = "#f4c430";
   const brown = "#5c4314";
+  let days = 14;
+  let tab = "unmatched";
 
   function setCoach(text) {
     coachText.textContent = text || DEFAULT;
@@ -17,28 +19,50 @@
     if (!e.relatedTarget || !e.relatedTarget.closest("[data-tip]")) setCoach(DEFAULT);
   });
 
+  document.querySelectorAll("[data-tab-jump]").forEach((el) => {
+    el.style.cursor = "pointer";
+    el.addEventListener("click", () => switchTab(el.dataset.tabJump));
+  });
+
   document.getElementById("log-body").addEventListener("click", (e) => {
     const tr = e.target.closest("tr");
-    if (!tr) return;
+    if (!tr || !tr.classList.contains("log-row")) return;
     document.querySelectorAll(".log-row.is-open").forEach((row) => {
       if (row !== tr) row.classList.remove("is-open");
     });
     tr.classList.toggle("is-open");
-    setCoach(tr.classList.contains("is-open")
-      ? "กำลังดูคำตอบเต็มของครั้งนี้ กดแถวอีกครั้งเพื่อย่อ"
-      : DEFAULT);
   });
+
+  document.querySelectorAll(".review-tab").forEach((btn) => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  function switchTab(name) {
+    tab = name;
+    document.querySelectorAll(".review-tab").forEach((b) => b.classList.toggle("is-on", b.dataset.tab === name));
+    document.querySelectorAll(".review-panel").forEach((p) => {
+      p.hidden = p.dataset.panel !== name;
+    });
+    setCoach(name === "unmatched"
+      ? "นี่คือคำถามที่ระบบยังตอบไม่ได้ เรียงจากถูกถามบ่อยสุด"
+      : name === "matched"
+        ? "นี่คือคำถามที่ระบบตอบได้แล้ว ใช้ตรวจว่าจับ FAQ ตรงเรื่องหรือไม่"
+        : "ประวัติรายครั้ง กดแถวเพื่อดูคำตอบเต็ม");
+  }
 
   if (typeof Chart === "undefined") {
     document.querySelectorAll(".chart-box").forEach((el) => {
       el.innerHTML = '<p class="hint">โหลดกราฟไม่สำเร็จ ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วรีเฟรชหน้านี้</p>';
     });
-    return;
   }
-  Chart.defaults.font.family = "Prompt, Sarabun, sans-serif";
-  Chart.defaults.color = brown;
 
-  const dayChart = new Chart(document.getElementById("chart-day"), {
+  const chartsReady = typeof Chart !== "undefined";
+  if (chartsReady) {
+    Chart.defaults.font.family = "Prompt, Sarabun, sans-serif";
+    Chart.defaults.color = brown;
+  }
+
+  const dayChart = chartsReady ? new Chart(document.getElementById("chart-day"), {
     type: "bar",
     data: {
       labels: data.summary.by_day?.labels || [],
@@ -50,25 +74,10 @@
         maxBarThickness: 28
       }]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => ` ${ctx.parsed.y} ครั้ง`
-          }
-        }
-      },
-      scales: {
-        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "rgba(184,134,11,.15)" } },
-        x: { grid: { display: false } }
-      }
-    }
-  });
+    options: barOptions("y")
+  }) : null;
 
-  const hourChart = new Chart(document.getElementById("chart-hour"), {
+  const hourChart = chartsReady ? new Chart(document.getElementById("chart-hour"), {
     type: "bar",
     data: {
       labels: data.summary.by_hour?.labels || [],
@@ -80,63 +89,27 @@
         maxBarThickness: 18
       }]
     },
-    options: {
+    options: barOptions("y", true)
+  }) : null;
+
+  function barOptions(axis, hour) {
+    return {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            title: (items) => items[0]?.label ? `ช่วง ${items[0].label} น.` : "",
-            label: (ctx) => ` ${ctx.parsed.y} ครั้ง`
+            title: hour ? (items) => items[0]?.label ? `ช่วง ${items[0].label} น.` : "" : undefined,
+            label: (ctx) => ` ${ctx.parsed[axis]} ครั้ง`
           }
         }
       },
       scales: {
         y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "rgba(184,134,11,.15)" } },
-        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } }
+        x: { grid: { display: false }, ticks: hour ? { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } : {} }
       }
-    }
-  });
-
-  const topChart = new Chart(document.getElementById("chart-top"), {
-    type: "bar",
-    data: {
-      labels: (data.summary.top || []).map((x) => trimLabel(x.label)),
-      datasets: [{
-        label: "ครั้ง",
-        data: (data.summary.top || []).map((x) => x.count),
-        backgroundColor: ["#f4c430", "#e0a800", "#c9920a", "#b8860b", "#9a6f09", "#7a5a12", "#5c4314", "#3d2e0f", "#d4a017", "#ffd54a"],
-        borderRadius: 8,
-        maxBarThickness: 22
-      }]
-    },
-    options: {
-      indexAxis: "y",
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: (items) => {
-              const i = items[0]?.dataIndex ?? 0;
-              return data.summary.top?.[i]?.label || "";
-            },
-            label: (ctx) => ` ถูกถาม ${ctx.parsed.x} ครั้ง`
-          }
-        }
-      },
-      scales: {
-        x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "rgba(184,134,11,.15)" } },
-        y: { grid: { display: false } }
-      }
-    }
-  });
-
-  function trimLabel(s) {
-    s = String(s || "");
-    return s.length > 36 ? s.slice(0, 34) + "…" : s;
+    };
   }
 
   document.querySelectorAll(".range").forEach((btn) => {
@@ -144,9 +117,8 @@
     btn.addEventListener("click", async () => {
       document.querySelectorAll(".range").forEach((b) => b.classList.remove("is-on"));
       btn.classList.add("is-on");
-      const days = btn.dataset.days;
+      days = Number(btn.dataset.days);
       document.getElementById("range-hint").textContent = `กำลังโหลดสถิติ ${days} วันล่าสุด...`;
-      setCoach(`กำลังเปลี่ยนมุมมองเป็น ${days} วันล่าสุด`);
       try {
         const res = await fetch(`../api/insights.php?days=${days}`);
         const json = await res.json();
@@ -154,39 +126,42 @@
         data.summary = json.summary;
         if (json.rows) data.rows = json.rows;
         applySummary(json.summary);
-        renderLog(Number(days));
-        document.getElementById("range-hint").textContent = `กำลังแสดง ${days} วันล่าสุด เลื่อนลงเพื่อดูกราฟและประวัติรายคน`;
-        setCoach(`อัปเดตแล้ว นี่คือภาพรวม ${days} วันล่าสุด`);
+        renderAll();
+        document.getElementById("range-hint").textContent = `กำลังแสดง ${days} วันล่าสุด จากคำถามจริง`;
       } catch (e) {
         document.getElementById("range-hint").textContent = "โหลดสถิติไม่สำเร็จ ลองกดอีกครั้ง";
       }
     });
   });
 
+  const filterCat = document.getElementById("filter-cat");
+  const filterQ = document.getElementById("filter-q");
+  filterCat.addEventListener("change", renderAll);
+  filterQ.addEventListener("input", renderAll);
+
   function applySummary(s) {
     document.getElementById("kpi-total").textContent = s.total;
-    document.getElementById("kpi-visitors").textContent = s.unique_visitors;
+    document.getElementById("kpi-matched").textContent = s.matched;
+    document.getElementById("kpi-unmatched").textContent = s.unmatched;
     document.getElementById("kpi-rate").textContent = s.match_rate + "%";
-    document.getElementById("kpi-peak").textContent = String(s.peak_hour).padStart(2, "0") + ":00";
-    dayChart.data.labels = s.by_day.labels;
-    dayChart.data.datasets[0].data = s.by_day.values;
-    dayChart.update();
-    hourChart.data.labels = s.by_hour.labels;
-    hourChart.data.datasets[0].data = s.by_hour.values;
-    hourChart.update();
-    topChart.data.labels = (s.top || []).map((x) => trimLabel(x.label));
-    topChart.data.datasets[0].data = (s.top || []).map((x) => x.count);
-    topChart.update();
-    const list = document.getElementById("top-list");
-    list.innerHTML = (s.top || []).map((item) =>
-      `<li><span class="rank">${item.rank}</span><span class="label">${escapeHtml(item.label)}</span><span class="count">${item.count} ครั้ง</span></li>`
-    ).join("") || '<li class="empty">ยังไม่มีคำถามในช่วงนี้</li>';
+    document.getElementById("tab-unmatched").textContent = s.unmatched;
+    document.getElementById("tab-matched").textContent = s.matched;
+    if (dayChart) {
+      dayChart.data.labels = s.by_day.labels;
+      dayChart.data.datasets[0].data = s.by_day.values;
+      dayChart.update();
+    }
+    if (hourChart) {
+      hourChart.data.labels = s.by_hour.labels;
+      hourChart.data.datasets[0].data = s.by_hour.values;
+      hourChart.update();
+    }
   }
 
-  function sinceDays(days) {
+  function sinceDays(n) {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - Math.max(1, days));
+    d.setDate(d.getDate() - Math.max(1, n));
     return d.getTime();
   }
 
@@ -199,21 +174,103 @@
     return `${t.getDate()} ${months[t.getMonth()]} ${t.getFullYear() + 543} เวลา ${hh}:${mm} น.`;
   }
 
-  function renderLog(days) {
+  function visibleRows() {
+    const cat = (filterCat.value || "").trim();
+    const q = (filterQ.value || "").trim().toLowerCase();
     const since = sinceDays(days);
-    const rows = (data.rows || []).filter((row) => {
+    return (data.rows || []).filter((row) => {
       const ts = new Date(row.time || "").getTime();
-      return Number.isFinite(ts) && ts >= since;
+      if (!Number.isFinite(ts) || ts < since) return false;
+      if (cat && String(row.category || "") !== cat) return false;
+      if (!q) return true;
+      const hay = `${row.question || ""} ${row.faq || ""} ${row.answer || ""} ${row.category || ""}`.toLowerCase();
+      return hay.includes(q);
     });
+  }
+
+  function groupRows(list, matched) {
+    const buckets = {};
+    list.forEach((row) => {
+      if (!!row.matched !== matched) return;
+      const question = String(row.question || "").trim();
+      const faq = String(row.faq || "").trim();
+      const label = matched ? (faq || question) : question;
+      const key = label.toLowerCase().replace(/\s+/g, " ");
+      if (!key) return;
+      if (!buckets[key]) {
+        buckets[key] = {
+          question: label,
+          category: row.category || "",
+          count: 0,
+          last_time: row.time || "",
+          samples: []
+        };
+      }
+      buckets[key].count += 1;
+      if (String(row.time || "") >= String(buckets[key].last_time || "")) {
+        buckets[key].last_time = row.time || "";
+        buckets[key].question = label;
+        buckets[key].category = row.category || "";
+      }
+      if (question && buckets[key].samples.length < 4 && !buckets[key].samples.includes(question)) {
+        buckets[key].samples.push(question);
+      }
+    });
+    return Object.values(buckets).sort((a, b) => b.count - a.count);
+  }
+
+  function addUrl(category, question) {
+    return "index.php?add=1&c=" + encodeURIComponent(category || "") + "&q=" + encodeURIComponent(question || "");
+  }
+
+  function renderAll() {
+    const rows = visibleRows();
+    const unmatched = groupRows(rows, false);
+    const matched = groupRows(rows, true);
+    const matchedN = rows.filter((r) => r.matched).length;
+    const unmatchedN = rows.length - matchedN;
+    document.getElementById("kpi-total").textContent = rows.length;
+    document.getElementById("kpi-matched").textContent = matchedN;
+    document.getElementById("kpi-unmatched").textContent = unmatchedN;
+    document.getElementById("kpi-rate").textContent = (rows.length ? Math.round(matchedN * 100 / rows.length) : 0) + "%";
+    document.getElementById("tab-unmatched").textContent = unmatchedN;
+    document.getElementById("tab-matched").textContent = matchedN;
+
+    const um = document.getElementById("unmatched-body");
+    um.innerHTML = unmatched.length ? unmatched.map((item) => `
+      <tr class="faq-row">
+        <td><span class="count-pill">${item.count}</span></td>
+        <td>${escapeHtml(item.category || "-")}</td>
+        <td>
+          <div class="cell-q">${escapeHtml(item.question || "")}</div>
+          ${item.samples && item.samples.length && item.samples[0] !== item.question
+            ? `<div class="cell-samples">เช่น ${escapeHtml(item.samples.slice(0, 2).join(" · "))}</div>` : ""}
+        </td>
+        <td>${escapeHtml(thaiWhen(item.last_time || ""))}</td>
+        <td><a class="btn" href="${addUrl(item.category, item.question)}">เพิ่มคำตอบ</a></td>
+      </tr>
+    `).join("") : '<tr><td colspan="5" class="hint">ยังไม่มีคำถามที่ไม่พบคำตอบในช่วงนี้</td></tr>';
+
+    const mb = document.getElementById("matched-body");
+    mb.innerHTML = matched.length ? matched.map((item) => `
+      <tr class="faq-row">
+        <td><span class="count-pill ok">${item.count}</span></td>
+        <td>${escapeHtml(item.category || "-")}</td>
+        <td><div class="cell-q">${escapeHtml(item.question || "")}</div></td>
+        <td><div class="cell-samples">${escapeHtml((item.samples || []).slice(0, 3).join(" · "))}</div></td>
+        <td>${escapeHtml(thaiWhen(item.last_time || ""))}</td>
+      </tr>
+    `).join("") : '<tr><td colspan="5" class="hint">ยังไม่มีคำถามที่ตอบได้ในช่วงนี้</td></tr>';
+
     const body = document.getElementById("log-body");
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="6" class="hint">ยังไม่มีประวัติการถามในช่วงนี้ ลองเปิดวิดเจ็ตแล้วถามคำถามดูค่ะ</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="hint">ยังไม่มีประวัติการถามจริงในช่วงนี้</td></tr>';
       return;
     }
-    body.innerHTML = rows.slice(0, 80).map((row) => `
-      <tr class="faq-row log-row" data-tip="คลิกเพื่อขยายดูคำตอบเต็มของครั้งนี้">
+    body.innerHTML = rows.slice(0, 120).map((row) => `
+      <tr class="faq-row log-row">
         <td>${escapeHtml(thaiWhen(row.time || ""))}</td>
-        <td><span class="tag">ผู้ใช้ ${escapeHtml(String(row.visitor || "-"))}</span></td>
+        <td><span class="tag">${escapeHtml(String(row.visitor || "-"))}</span></td>
         <td>${escapeHtml(String(row.category || "-"))}</td>
         <td><div class="cell-q">${escapeHtml(String(row.question || ""))}</div></td>
         <td><div class="cell-a">${escapeHtml(String(row.answer || ""))}</div></td>

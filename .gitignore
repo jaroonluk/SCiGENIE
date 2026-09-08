@@ -6,6 +6,9 @@ data/faq-cache.meta.json
 data/faq-overrides.json
 data/ask-log.jsonl
 data/line-sessions.json
+data/fb-sessions.json
+data/fb-subscribed.flag
+data/fb-menu.flag
 .idea/
 tools/sheet.csv
 Thumbs.db

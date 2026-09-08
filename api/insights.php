@@ -10,14 +10,13 @@ if (!in_array($days, [7, 14, 30], true)) {
     $days = 14;
 }
 
-$sheet = new SheetService();
 $log = new AskLog();
-$log->seedIfEmpty($sheet->all());
-$rows = $log->all();
+$rows = Auth::filterAskRows($log->all(4000, true));
 $summary = $log->summarize($rows, $days);
 
 json_response([
     'ok' => true,
     'summary' => $summary,
-    'rows' => array_slice($rows, 0, 300),
+    'rows' => Auth::isSuper() ? array_slice($rows, 0, 400) : [],
+    'scope' => Auth::isSuper() ? 'all' : Auth::allowedCategories(),
 ]);

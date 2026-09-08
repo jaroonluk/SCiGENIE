@@ -18,6 +18,11 @@ try {
     Auth::requireCategory(trim((string) ($input['category'] ?? '')));
     $sheet = new SheetService();
     $result = $sheet->add($input);
+    (new AskLog())->recordAdmin('faq_add', [
+        'id' => (string) ($result['item']['id'] ?? ''),
+        'category' => trim((string) ($input['category'] ?? '')),
+        'question' => mb_substr(trim((string) ($input['question'] ?? '')), 0, 120),
+    ]);
     json_response([
         'ok' => true,
         'item' => $result['item'],
