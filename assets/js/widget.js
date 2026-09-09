@@ -308,7 +308,7 @@
   function renderAnswer(data) {
     if (data.matched && data.item) {
       const item = data.item;
-      if (!currentCategory && item.category) {
+      if (item.category && (!currentCategory || data.other_category || item.category !== currentCategory)) {
         applyCategory(item.category);
       }
       const other = data.other_category ? `<div class="scg-meta">พบคำตอบในหมวด «${escapeHtml(item.category)}»</div>` : "";

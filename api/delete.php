@@ -32,6 +32,7 @@ try {
         'question' => mb_substr(trim((string) ($current['question'] ?? '')), 0, 120),
     ]);
     $result = $sheet->delete($id);
+    FaqEmbedder::deleteFaq($id);
     json_response([
         'ok' => true,
         'id' => $result['id'],

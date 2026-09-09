@@ -29,7 +29,8 @@ $sheet = new SheetService();
 $matcher = new Matcher();
 $result = $matcher->ask($sheet->all(), $question, $category);
 $result['ok'] = true;
-$result['category'] = $category;
+$matchedCat = trim((string) ($result['item']['category'] ?? ''));
+$result['category'] = (!empty($result['matched']) && $matchedCat !== '') ? $matchedCat : $category;
 $result['question'] = $question;
 $result['reply_text'] = LineBot::replyTextForAsk($result);
 
@@ -38,7 +39,7 @@ if ($question !== '') {
     $log = new AskLog();
     $log->record([
         'visitor' => $visitor,
-        'category' => $category,
+        'category' => $result['category'],
         'question' => $question,
         'matched' => !empty($result['matched']),
         'faq' => $item['question'] ?? '',

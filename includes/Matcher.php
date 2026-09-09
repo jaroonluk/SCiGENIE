@@ -32,7 +32,7 @@ class Matcher
         'วมว' => ['วมว.', 'scius', 'วมว-มข', 'วมว.มข'],
     ];
 
-    public function ask(array $faqs, string $question, string $category = ''): array
+    public function ask(array $faqs, string $question, string $category = '', bool $allowCrossCategory = true): array
     {
         $question = trim($question);
         if ($question === '') {
@@ -50,6 +50,11 @@ class Matcher
         }
 
         $scored = $this->scoreAll($pool, $question);
+        $topScore = (int) ($scored[0]['score'] ?? 0);
+        if ($topScore < 22 || $scored === []) {
+            $scored = $this->mergeSemanticScores($scored, $pool, $question);
+        }
+
         $eligible = [];
         foreach ($scored as $row) {
             if ((int) ($row['score'] ?? 0) >= self::MIN_SCORE) {
@@ -61,6 +66,12 @@ class Matcher
         }
 
         if ($eligible === []) {
+            if ($category !== '' && $allowCrossCategory) {
+                $cross = $this->crossCategoryMatch($faqs, $question, $category);
+                if ($cross !== null) {
+                    return $cross;
+                }
+            }
             $items = array_map(fn ($row) => $this->publicFaq($row['faq'], $row['score']), array_slice($scored, 0, 3));
             if ($category === '') {
                 return $this->needCategoryResult($faqs, $items);
@@ -102,6 +113,12 @@ class Matcher
             } else {
                 $why = $verdict['reason'] ?? 'rejected';
                 error_log('SCiGENIE OpenAI reject: ' . mb_substr((string) $why, 0, 200));
+                if ($category !== '' && $allowCrossCategory) {
+                    $cross = $this->crossCategoryMatch($faqs, $question, $category);
+                    if ($cross !== null) {
+                        return $cross;
+                    }
+                }
                 if ($category === '') {
                     return $this->needCategoryResult($faqs, array_slice($candidates, 0, 3));
                 }
@@ -122,6 +139,19 @@ class Matcher
             return $this->needCategoryResult($faqs, $items);
         }
 
+        // Locked category may still produce a false local hit — prefer a clearly better answer elsewhere.
+        if ($category !== '' && $allowCrossCategory) {
+            $cross = $this->crossCategoryMatch($faqs, $question, $category);
+            if ($cross !== null) {
+                $crossScore = (int) ($cross['item']['score'] ?? 0);
+                $localScore = (int) ($picked['score'] ?? 0);
+                $margin = $trusted ? 8 : 0;
+                if ($crossScore >= $localScore + $margin) {
+                    return $cross;
+                }
+            }
+        }
+
         $related = [];
         foreach ($eligible as $item) {
             if ((string) ($item['faq']['id'] ?? '') === (string) ($picked['faq']['id'] ?? '')) {
@@ -135,13 +165,35 @@ class Matcher
             }
         }
 
+        $itemCat = trim((string) ($picked['faq']['category'] ?? ''));
         return [
             'matched' => true,
             'confidence' => $this->confidence((int) ($picked['score'] ?? 0)),
             'item' => $this->publicFaq($picked['faq'], $picked['score'], $picked['hits'] ?? []),
             'related' => $related,
             'suggestions' => [],
+            'other_category' => $category !== '' && $itemCat !== '' && $itemCat !== $category,
         ];
+    }
+
+    /**
+     * Retry matching across all FAQs when the locked category has no good answer.
+     *
+     * @param list<array<string, mixed>> $faqs
+     * @return array<string, mixed>|null
+     */
+    private function crossCategoryMatch(array $faqs, string $question, string $lockedCategory): ?array
+    {
+        $cross = $this->ask($faqs, $question, '', false);
+        if (empty($cross['matched']) || empty($cross['item']['answer'])) {
+            return null;
+        }
+        $foundCat = trim((string) ($cross['item']['category'] ?? ''));
+        if ($foundCat === '' || $foundCat === $lockedCategory) {
+            return null;
+        }
+        $cross['other_category'] = true;
+        return $cross;
     }
 
     public static function noMatchMessage(): string
@@ -208,6 +260,60 @@ class Matcher
         }
         usort($scored, static fn ($a, $b) => $b['score'] <=> $a['score']);
         return $scored;
+    }
+
+    /**
+     * @param list<array{faq: array<string, mixed>, score: int, hits: list<string>}> $scored
+     * @param list<array<string, mixed>> $pool
+     * @return list<array{faq: array<string, mixed>, score: int, hits: list<string>}>
+     */
+    private function mergeSemanticScores(array $scored, array $pool, string $question): array
+    {
+        if (!FaqEmbedder::configured() || $pool === []) {
+            return $scored;
+        }
+
+        $hits = FaqEmbedder::search($question, $pool, 5);
+        if ($hits === []) {
+            return $scored;
+        }
+
+        $scale = (float) config('semantic_bonus_scale', 45);
+        $byId = [];
+        foreach ($scored as $row) {
+            $id = (string) ($row['faq']['id'] ?? '');
+            if ($id !== '') {
+                $byId[$id] = $row;
+            }
+        }
+
+        foreach ($hits as $hit) {
+            $faq = $hit['faq'];
+            $id = (string) ($faq['id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+            $bonus = (int) round(((float) $hit['similarity']) * $scale);
+            if ($bonus < 1) {
+                continue;
+            }
+            if (isset($byId[$id])) {
+                $byId[$id]['score'] = (int) ($byId[$id]['score'] ?? 0) + $bonus;
+                $hitsList = $byId[$id]['hits'] ?? [];
+                $hitsList[] = 'semantic:' . number_format((float) $hit['similarity'], 2);
+                $byId[$id]['hits'] = array_values(array_unique($hitsList));
+            } else {
+                $byId[$id] = [
+                    'faq' => $faq,
+                    'score' => $bonus,
+                    'hits' => ['semantic:' . number_format((float) $hit['similarity'], 2)],
+                ];
+            }
+        }
+
+        $merged = array_values($byId);
+        usort($merged, static fn ($a, $b) => $b['score'] <=> $a['score']);
+        return $merged;
     }
 
     private function scoreOne(array $faq, string $rawQ, string $normQ): array

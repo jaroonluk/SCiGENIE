@@ -18,6 +18,9 @@ try {
     Auth::requireCategory(trim((string) ($input['category'] ?? '')));
     $sheet = new SheetService();
     $result = $sheet->add($input);
+    if (!empty($result['item'])) {
+        FaqEmbedder::upsertFaq($result['item']);
+    }
     (new AskLog())->recordAdmin('faq_add', [
         'id' => (string) ($result['item']['id'] ?? ''),
         'category' => trim((string) ($input['category'] ?? '')),

@@ -228,6 +228,7 @@ class FaqService
         }
         $this->ensureSchema();
         $this->seedIfEmpty();
+        FaqEmbedder::ensureSchema();
         self::$ready = true;
     }
 

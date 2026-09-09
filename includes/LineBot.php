@@ -111,6 +111,15 @@ class LineBot
         }
 
         $result = self::faq()->match($text, $sessionCat);
+        if (!empty($result['matched']) && !empty($result['item']['answer'])) {
+            $foundCat = trim((string) ($result['item']['category'] ?? ''));
+            if ($foundCat !== '' && $foundCat !== $sessionCat) {
+                self::setCategory($userId, $foundCat);
+            }
+            $replyCat = $foundCat !== '' ? $foundCat : $sessionCat;
+            self::logAsk($userId, $replyCat, $text, $result);
+            return self::answerMessages($userId, $result, $replyCat);
+        }
         self::logAsk($userId, $sessionCat, $text, $result);
         return self::answerMessages($userId, $result, $sessionCat);
     }

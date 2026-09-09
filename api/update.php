@@ -28,6 +28,9 @@ try {
     Auth::requireCategory((string) ($current['category'] ?? ''));
     Auth::requireCategory(trim((string) ($input['category'] ?? $current['category'] ?? '')));
     $result = $sheet->update($id, $input);
+    if (!empty($result['item'])) {
+        FaqEmbedder::upsertFaq($result['item']);
+    }
     (new AskLog())->recordAdmin('faq_edit', [
         'id' => $id,
         'category' => trim((string) ($input['category'] ?? $current['category'] ?? '')),
