@@ -24,6 +24,7 @@ if (!LineBot::verifySignature($raw, $signature)) {
 
 $payload = json_decode($raw, true);
 $events = is_array($payload) ? ($payload['events'] ?? []) : [];
+flush_http_response(200, '{"ok":true}');
 if (is_array($events)) {
     foreach ($events as $event) {
         if (is_array($event)) {
@@ -35,8 +36,4 @@ if (is_array($events)) {
         }
     }
 }
-
-http_response_code(200);
-header('Content-Type: application/json; charset=utf-8');
-echo '{"ok":true}';
 exit;

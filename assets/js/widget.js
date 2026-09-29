@@ -13,7 +13,7 @@
   if (!document.querySelector("link[data-scigenie-css]")) {
     const css = document.createElement("link");
     css.rel = "stylesheet";
-    css.href = BASE + "/assets/css/widget.css";
+    css.href = BASE + "/assets/css/widget.css?v=20260819";
     css.dataset.scigenieCss = "1";
     document.head.appendChild(css);
   }
@@ -38,6 +38,8 @@
     atom: '<circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z"/>',
     send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    maximize: '<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M3 15v6h6"/>',
+    minimize: '<path d="m14 10 7-7"/><path d="M20 10V4h-6"/><path d="m3 21 7-7"/><path d="M4 14v6h6"/>',
     "refresh-ccw": '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
     bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
     message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
@@ -83,18 +85,19 @@
             <p>ผู้ช่วยตอบคำถาม คณะวิทยาศาสตร์ มข.</p>
           </div>
           <div class="scg-head-actions">
-            <button class="scg-icon-btn" data-act="home" title="เลือกหมวดใหม่">${svg("refresh-ccw")}</button>
-            <button class="scg-icon-btn" data-act="close" title="ปิด">${svg("x")}</button>
+            <button class="scg-icon-btn" data-act="home" title="เลือกหมวดใหม่" aria-label="เลือกหมวดใหม่">${svg("refresh-ccw")}</button>
+            <button class="scg-icon-btn" data-act="full" title="ขยายเต็มจอ" aria-label="ขยายเต็มจอ" aria-pressed="false">${svg("maximize")}</button>
+            <button class="scg-icon-btn" data-act="close" title="ปิด" aria-label="ปิด">${svg("x")}</button>
           </div>
         </div>
         <div class="scg-catbar"></div>
         <div class="scg-body"></div>
         <div class="scg-foot">
           <form class="scg-form">
-            <textarea rows="1" placeholder="เลือกหมวดก่อน แล้วพิมพ์คำถาม..." disabled></textarea>
-            <button class="scg-send" type="submit" disabled title="ส่งคำถาม">${svg("send")}</button>
+            <textarea rows="1" placeholder="พิมพ์คำถามได้เลย หรือเลือกหมวดเพื่อความแม่นยำ"></textarea>
+            <button class="scg-send" type="submit" title="ส่งคำถาม">${svg("send")}</button>
           </form>
-          <div class="scg-note">ตอบจากคลังคำถามคณะวิทยาศาสตร์ • เลือกหมวดเพื่อความแม่นยำ</div>
+          <div class="scg-note">ตอบจากคลังคำถามคณะวิทยาศาสตร์ • เลือกหมวดถ้าต้องการให้ตอบตรงขึ้น</div>
         </div>
       </section>
       <button class="scg-fab" type="button" aria-label="เปิดผู้ช่วย SCiGENIE">
@@ -114,11 +117,36 @@
   const form = root.querySelector(".scg-form");
   const input = form.querySelector("textarea");
   const sendBtn = form.querySelector(".scg-send");
+  const fullBtn = root.querySelector('[data-act="full"]');
 
   let open = false;
+  let full = false;
   let categories = [];
   let currentCategory = "";
   let loaded = false;
+
+  try {
+    full = localStorage.getItem("scigenie_full") === "1";
+  } catch (e) {
+    full = false;
+  }
+
+  function applyFull() {
+    root.classList.toggle("is-full", full && open);
+    document.documentElement.classList.toggle("scigenie-noscroll", full && open);
+    fullBtn.innerHTML = full ? svg("minimize") : svg("maximize");
+    fullBtn.title = full ? "ย่อหน้าต่าง" : "ขยายเต็มจอ";
+    fullBtn.setAttribute("aria-label", fullBtn.title);
+    fullBtn.setAttribute("aria-pressed", full ? "true" : "false");
+  }
+
+  function setFull(on) {
+    full = on;
+    try {
+      localStorage.setItem("scigenie_full", full ? "1" : "0");
+    } catch (e) {}
+    applyFull();
+  }
 
   function toggle(force) {
     open = typeof force === "boolean" ? force : !open;
@@ -126,17 +154,29 @@
     fab.classList.toggle("is-open", open);
     fab.innerHTML = open ? svg("x") : `<span class="scg-pulse"></span>${logoImg()}`;
     tip.style.display = open ? "none" : "";
+    applyFull();
     if (open && !loaded) {
       showWelcome();
       loadCategories();
+      setComposer(true);
     }
   }
 
   fab.addEventListener("click", () => toggle());
   root.querySelector('[data-act="close"]').addEventListener("click", () => toggle(false));
+  fullBtn.addEventListener("click", () => setFull(!full));
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !open) return;
+    if (full) {
+      e.preventDefault();
+      setFull(false);
+      return;
+    }
+    toggle(false);
+  });
   root.querySelector('[data-act="home"]').addEventListener("click", () => {
     currentCategory = "";
-    setComposer(false);
+    setComposer(true);
     catbar.classList.remove("is-on");
     showWelcome();
     renderCategories();
@@ -158,18 +198,23 @@
     body.innerHTML = `
       <div class="scg-msg">
         <div class="scg-avatar">${logoImg()}</div>
-        <div class="scg-bubble">สวัสดีค่ะ ยินดีต้อนรับสู่ <b>SCiGENIE</b> ผู้ช่วยตอบคำถามคณะวิทยาศาสตร์ มหาวิทยาลัยขอนแก่น<br><br>เลือกหมวดที่ต้องการสอบถามได้เลยค่ะ</div>
+        <div class="scg-bubble">สวัสดีค่ะ ยินดีต้อนรับสู่ <b>SCiGENIE</b> ผู้ช่วยตอบคำถามคณะวิทยาศาสตร์ มหาวิทยาลัยขอนแก่น<br><br>พิมพ์คำถามได้เลยค่ะ หรือเลือกหมวดด้านล่างเพื่อให้ตอบตรงขึ้น</div>
       </div>
       <div class="scg-cats" id="scg-cats"></div>
     `;
   }
 
   function renderCategories() {
-    const wrap = body.querySelector("#scg-cats") || body;
     if (!body.querySelector("#scg-cats")) {
       showWelcome();
     }
     const box = body.querySelector("#scg-cats");
+    if (box) {
+      fillCategoryButtons(box);
+    }
+  }
+
+  function fillCategoryButtons(box) {
     box.innerHTML = categories.map((c) => `
       <button class="scg-cat" data-cat="${escapeHtml(c.name)}">
         <div class="scg-cat-ico">${svg(c.icon)}</div>
@@ -183,31 +228,27 @@
   }
 
   async function selectCategory(name) {
+    applyCategory(name);
+    const meta = categories.find((c) => c.name === name) || { short: name, icon: "folder" };
+    body.innerHTML = "";
+    addBot(`เลือกหมวด <b>${escapeHtml(meta.short || name)}</b> แล้วค่ะ พิมพ์คำถามที่ช่องด้านล่างได้เลย`);
+    input.focus();
+  }
+
+  function applyCategory(name) {
     currentCategory = name;
     const meta = categories.find((c) => c.name === name) || { short: name, icon: "folder" };
     catbar.classList.add("is-on");
-    catbar.innerHTML = `<span class="scg-chip">${svg(meta.icon)}${escapeHtml(meta.short || name)}</span><span>พิมพ์คำถาม หรือเลือกคำถามแนะนำ</span>`;
+    catbar.innerHTML = `<span class="scg-chip">${svg(meta.icon)}${escapeHtml(meta.short || name)}</span><span>พิมพ์คำถามได้เลย</span>`;
     setComposer(true);
-    body.innerHTML = "";
-    addBot(`เลือกหมวด <b>${escapeHtml(meta.short || name)}</b> แล้วค่ะ พิมพ์คำถามได้เลย หรือกดคำถามแนะนำด้านล่าง`);
-    addTyping();
-    try {
-      const res = await fetch(API + "/suggest.php?category=" + encodeURIComponent(name));
-      const data = await res.json();
-      removeTyping();
-      if (data.suggestions && data.suggestions.length) {
-        addSuggestions(data.suggestions);
-      }
-    } catch (e) {
-      removeTyping();
-    }
-    input.focus();
   }
 
   function setComposer(on) {
     input.disabled = !on;
     sendBtn.disabled = !on;
-    input.placeholder = on ? "พิมพ์คำถาม เช่น ค่าเทอม เลื่อนสอบ ทุนการศึกษา" : "เลือกหมวดก่อน แล้วพิมพ์คำถาม...";
+    input.placeholder = on
+      ? "พิมพ์คำถาม เช่น ค่าเทอม เลื่อนสอบ ทุนการศึกษา"
+      : "พิมพ์คำถามได้เลย หรือเลือกหมวดเพื่อความแม่นยำ";
   }
 
   function addBot(html, extra) {
@@ -231,12 +272,6 @@
     body.querySelectorAll(".scg-wait").forEach((n) => n.remove());
   }
 
-  function addSuggestions(items) {
-    const buttons = items.map((s) => `<button type="button" data-q="${escapeHtml(s.question)}">${escapeHtml(s.question)}</button>`).join("");
-    const node = addBot(`<div class="scg-meta">คำถามที่พบบ่อยในหมวดนี้</div><div class="scg-suggests">${buttons}</div>`);
-    node.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => ask(b.dataset.q)));
-  }
-
   function visitorId() {
     try {
       let id = localStorage.getItem("scigenie_vid");
@@ -252,7 +287,7 @@
 
   async function ask(text) {
     const q = (text || "").trim();
-    if (!q || !currentCategory) return;
+    if (!q) return;
     addUser(q);
     addTyping();
     try {
@@ -273,26 +308,20 @@
   function renderAnswer(data) {
     if (data.matched && data.item) {
       const item = data.item;
-      const other = data.other_category ? `<div class="scg-meta">พบคำตอบในหมวด «${escapeHtml(item.category)}»</div>` : "";
-      const keys = item.matched_keywords && item.matched_keywords.length
-        ? `<div class="scg-meta">จับคีย์เวิร์ด: ${item.matched_keywords.slice(0, 4).map(escapeHtml).join(" • ")}</div>`
-        : "";
-      let related = "";
-      if (data.related && data.related.length) {
-        related = `<div class="scg-meta">คำถามที่เกี่ยวข้อง</div><div class="scg-related">${data.related.map((r) => `<button type="button" data-q="${escapeHtml(r.question)}">${escapeHtml(r.question)}</button>`).join("")}</div>`;
+      if (item.category && (!currentCategory || data.other_category || item.category !== currentCategory)) {
+        applyCategory(item.category);
       }
-      const title = item.question && item.question.length < 90 ? `<b>${escapeHtml(item.question)}</b>\n` : "";
-      const node = addBot(`${other}${title}${formatAnswer(item.answer)}${keys}${related}`);
-      node.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => ask(b.dataset.q)));
+      const other = data.other_category ? `<div class="scg-meta">พบคำตอบในหมวด «${escapeHtml(item.category)}»</div>` : "";
+      addBot(`${other}<div class="scg-meta">คำตอบ</div>${formatAnswer(item.answer)}`);
       return;
     }
-    let html = escapeHtml(data.message || "ยังไม่พบคำตอบที่ตรงกัน");
-    if (data.suggestions && data.suggestions.length) {
-      html += `<div class="scg-meta">ลองเลือกคำถามเหล่านี้</div><div class="scg-suggests">${data.suggestions.map((s) => `<button type="button" data-q="${escapeHtml(s.question)}">${escapeHtml(s.question)}</button>`).join("")}</div>`;
+    addBot(formatAnswer(data.message || "ขออภัยค่ะ ข้อมูลส่วนนี้ไม่มีในระบบที่ตรวจสอบได้ในขณะนี้"));
+    if (data.need_category) {
+      body.querySelectorAll("#scg-cats").forEach((n) => n.remove());
+      const wrap = el(`<div class="scg-cats" id="scg-cats"></div>`);
+      body.appendChild(wrap);
+      fillCategoryButtons(wrap);
     }
-    html += `<div class="scg-meta">หากยังไม่พบคำตอบ โทร 043-009-700 หรืออีเมล sc.inbox@kku.ac.th</div>`;
-    const node = addBot(html);
-    node.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => ask(b.dataset.q)));
   }
 
   form.addEventListener("submit", (e) => {
@@ -310,5 +339,10 @@
   });
 
   setTimeout(() => { if (!open) tip.style.opacity = "1"; }, 800);
-  window.SCiGENIE = { open: () => toggle(true), close: () => toggle(false) };
+  window.SCiGENIE = {
+    open: () => toggle(true),
+    close: () => toggle(false),
+    expand: () => { toggle(true); setFull(true); },
+    collapse: () => setFull(false)
+  };
 })();

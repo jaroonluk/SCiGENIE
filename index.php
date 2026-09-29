@@ -138,6 +138,6 @@ $base = app_base_path();
     </div>
   </footer>
 
-  <script src="assets/js/widget.js"></script>
+  <script src="assets/js/widget.js?v=20260909"></script>
 </body>
 </html>

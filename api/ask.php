@@ -9,33 +9,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $input = $_SERVER['REQUEST_METHOD'] === 'POST' ? request_json() : $_GET;
-$question = trim((string) ($input['question'] ?? ''));
+$question = trim((string) ($input['question'] ?? $input['text'] ?? ''));
 $category = trim((string) ($input['category'] ?? ''));
 $visitor = trim((string) ($input['visitor'] ?? ''));
+$channel = strtolower(trim((string) ($input['channel'] ?? $input['source'] ?? '')));
+$userId = trim((string) ($input['user_id'] ?? $input['userId'] ?? ''));
+
+if ($channel === 'line' || $userId !== '') {
+    $out = LineBot::processForApi($userId !== '' ? $userId : ($visitor !== '' ? $visitor : 'line-guest'), $question);
+    json_response([
+        'ok' => true,
+        'question' => $question,
+        'category' => $out['category'],
+        'reply_text' => $out['reply_text'],
+    ]);
+}
 
 $sheet = new SheetService();
 $matcher = new Matcher();
 $result = $matcher->ask($sheet->all(), $question, $category);
 $result['ok'] = true;
-$result['category'] = $category;
+$matchedCat = trim((string) ($result['item']['category'] ?? ''));
+$result['category'] = (!empty($result['matched']) && $matchedCat !== '') ? $matchedCat : $category;
 $result['question'] = $question;
 $result['reply_text'] = LineBot::replyTextForAsk($result);
 
 if ($question !== '') {
-    try {
-        $item = $result['item'] ?? [];
-        $log = new AskLog();
-        $log->record([
-            'visitor' => $visitor,
-            'category' => $category,
-            'question' => $question,
-            'matched' => !empty($result['matched']),
-            'faq' => $item['question'] ?? '',
-            'answer' => $item['answer'] ?? ($result['message'] ?? ''),
-        ]);
-    } catch (Throwable $e) {
-        error_log('SCiGENIE ask log failed: ' . $e->getMessage());
-    }
+    $item = $result['item'] ?? [];
+    $log = new AskLog();
+    $log->record([
+        'visitor' => $visitor,
+        'category' => $result['category'],
+        'question' => $question,
+        'matched' => !empty($result['matched']),
+        'faq' => $item['question'] ?? '',
+        'answer' => $item['answer'] ?? ($result['message'] ?? ''),
+    ]);
 }
 
 json_response($result);

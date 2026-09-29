@@ -40,6 +40,16 @@ if (ob_get_level() === 0) {
 
 load_dotenv(dirname(__DIR__) . '/.env');
 
+function env_value(string $name, string $default = ''): string
+{
+    $value = getenv($name);
+    if (is_string($value) && $value !== '') {
+        return $value;
+    }
+    $fallback = $_ENV[$name] ?? $_SERVER[$name] ?? $default;
+    return is_string($fallback) && $fallback !== '' ? $fallback : $default;
+}
+
 $config = require __DIR__ . '/config.php';
 
 function load_dotenv(string $path): void
@@ -65,7 +75,7 @@ function load_dotenv(string $path): void
         ) {
             $value = substr($value, 1, -1);
         }
-        if (getenv($name) === false) {
+        if (getenv($name) === false || getenv($name) === '') {
             putenv($name . '=' . $value);
             $_ENV[$name] = $value;
             $_SERVER[$name] = $value;
@@ -126,7 +136,7 @@ function app_base_path(): string
     $uri = public_request_path();
     $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
     foreach ([$uri, $script] as $path) {
-        if (preg_match('#^(.*?)/(api|admin|auth)(/|$)#', $path, $m)) {
+        if (preg_match('#^(.*?)/(api|admin|auth|fb)(/|$)#', $path, $m)) {
             $cached = normalize_app_base_path(rtrim($m[1], '/'));
             return $cached;
         }
@@ -205,6 +215,27 @@ function json_response(array $data, int $status = 200): void
     header('Access-Control-Allow-Headers: Content-Type');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
+}
+
+function flush_http_response(int $status = 200, string $body = '{"ok":true}'): void
+{
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Connection: close');
+    header('Content-Length: ' . strlen($body));
+    echo $body;
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        return;
+    }
+    if (function_exists('litespeed_finish_request')) {
+        litespeed_finish_request();
+        return;
+    }
+    flush();
 }
 
 function request_json(): array

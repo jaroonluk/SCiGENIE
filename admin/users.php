@@ -18,7 +18,7 @@ $admin = Auth::user();
   <title>ผู้ใช้ระบบ | SCiGENIE</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="icon" href="<?= htmlspecialchars(logo_url()) ?>">
-  <link rel="stylesheet" href="../assets/css/admin.css?v=<?= htmlspecialchars(asset_version('assets/css/admin.css')) ?>">
+  <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/css/admin.css?v=<?= filemtime(dirname(__DIR__) . '/assets/css/admin.css') ?>">
 </head>
 <body class="admin-page insights-page">
   <header class="topbar-admin">
@@ -121,6 +121,6 @@ $admin = Auth::user();
     </section>
   </div>
   <div id="list-msg" class="toast" hidden></div>
-  <script src="../assets/js/users.js?v=<?= htmlspecialchars(asset_version('assets/js/users.js')) ?>"></script>
+  <script src="<?= htmlspecialchars($base) ?>/assets/js/users.js?v=1"></script>
 </body>
 </html>

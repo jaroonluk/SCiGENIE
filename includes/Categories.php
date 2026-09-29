@@ -22,13 +22,44 @@ class Categories
         'ศูนย์บริหารจัดการห้องเรียนวิทยาศาสตร์ในโรงเรียน (วมว.-มข.)' => ['icon' => 'school', 'short' => 'วมว.-มข.', 'hint' => 'SCIUS หอพัก โควต้า'],
     ];
 
+    public const ICONS = [
+        'info' => '🏫',
+        'user-plus' => '🎓',
+        'clipboard' => '📝',
+        'file-pen' => '✍️',
+        'id-card' => '🪪',
+        'award' => '🏅',
+        'briefcase' => '💼',
+        'book' => '📚',
+        'coins' => '💰',
+        'heart' => '💛',
+        'flask' => '🧪',
+        'microscope' => '🔬',
+        'newspaper' => '📰',
+        'sparkles' => '✨',
+        'school' => '🏡',
+        'folder' => '📁',
+    ];
+
     public static function meta(string $name): array
     {
-        return self::MAP[$name] ?? ['icon' => 'folder', 'short' => $name, 'hint' => ''];
+        $row = self::MAP[$name] ?? ['icon' => 'folder', 'short' => $name, 'hint' => ''];
+        $row['emoji'] = self::emojiByIcon((string) $row['icon']);
+        return $row;
     }
 
     public static function short(string $name): string
     {
         return self::meta($name)['short'];
+    }
+
+    public static function emojiByIcon(string $icon): string
+    {
+        return self::ICONS[$icon] ?? '📁';
+    }
+
+    public static function emojiByName(string $name): string
+    {
+        return self::meta($name)['emoji'];
     }
 }

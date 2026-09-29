@@ -24,6 +24,9 @@ services:
       LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
       LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
       LINE_WEBHOOK_URL: ${LINE_WEBHOOK_URL:-}
+      FACEBOOK_PAGE_ACCESS_TOKEN: ${FACEBOOK_PAGE_ACCESS_TOKEN:-}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+      FACEBOOK_VERIFY_TOKEN: ${FACEBOOK_VERIFY_TOKEN:-scigenie-kku-fb-2026}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

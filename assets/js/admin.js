@@ -56,6 +56,7 @@
   function openDrawer(mode) {
     drawer.classList.add("is-open");
     backdrop.hidden = false;
+    requestAnimationFrame(() => backdrop.classList.add("is-open"));
     document.getElementById("drawer-title").textContent = mode === "edit" ? "แก้ไขคำถาม" : "เพิ่มคำถามใหม่";
     document.getElementById("drawer-sub").textContent = mode === "edit"
       ? "ตรวจทุกช่องให้ถูกต้อง แล้วกดบันทึกการแก้ไข"
@@ -67,7 +68,8 @@
 
   function closeDrawer() {
     drawer.classList.remove("is-open");
-    backdrop.hidden = true;
+    backdrop.classList.remove("is-open");
+    setTimeout(() => { backdrop.hidden = true; }, 220);
     resetForm();
     setCoach(DEFAULT_COACH);
   }
@@ -336,4 +338,26 @@
       ? "กำลังกรองตามคำที่พิมพ์ ตารางจะเหลือเฉพาะรายการที่ตรง"
       : "ล้างคำค้นแล้ว แสดงรายการตามหมวดที่เลือก");
   });
+
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.get("add") === "1") {
+      resetForm();
+      const categoryName = (params.get("c") || "").trim();
+      const questionText = (params.get("q") || "").trim();
+      if (categoryName) {
+        const has = Array.from(cat.options).some((o) => o.value === categoryName);
+        if (has) cat.value = categoryName;
+      }
+      if (questionText) {
+        form.question.value = questionText;
+        if (!form.keyword.value) {
+          form.keyword.value = questionText.split(/[\s,]+/).filter((w) => w.length >= 2).slice(0, 6).join(", ");
+          renderKw(form.keyword.value);
+        }
+      }
+      openDrawer("add");
+      if (form.answer) form.answer.focus();
+    }
+  } catch (e) {}
 })();
