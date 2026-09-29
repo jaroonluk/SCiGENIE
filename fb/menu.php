@@ -75,7 +75,7 @@ function fb_svg_icon(string $name): string
 <body data-token="<?= htmlspecialchars($token) ?>" data-category="<?= htmlspecialchars($current) ?>">
   <div class="app">
     <header class="header">
-      <div class="logo"><img src="<?= htmlspecialchars($base) ?>/assets/img/logo.jpg" alt=""></div>
+      <div class="logo"><img src="<?= htmlspecialchars($base) ?>/assets/img/SCiGENIE_logo.png" alt=""></div>
       <div class="brand">
         <b>SCiGENIE</b>
         <small><?= $current !== '' ? 'หมวด ' . htmlspecialchars($short) : 'ถาม–ตอบ คณะวิทยาศาสตร์ มข.' ?></small>

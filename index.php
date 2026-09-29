@@ -11,7 +11,7 @@ $base = app_base_path();
   <title>คณะวิทยาศาสตร์ มหาวิทยาลัยขอนแก่น | SCiGENIE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&amp;family=Sarabun:wght@400;600&amp;display=swap" rel="stylesheet">
-  <link rel="icon" href="assets/img/logo.jpg">
+  <link rel="icon" href="assets/img/SCiGENIE_logo.png">
   <link rel="stylesheet" href="assets/css/site.css">
 </head>
 <body>
@@ -138,6 +138,6 @@ $base = app_base_path();
     </div>
   </footer>
 
-  <script src="assets/js/widget.js?v=20260909"></script>
+  <script src="assets/js/widget.js?v=20260929"></script>
 </body>
 </html>
