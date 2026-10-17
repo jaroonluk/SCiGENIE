@@ -597,13 +597,40 @@ label small { font-weight: 500; color: var(--sc-muted); }
 }
 .kpi span { color: var(--sc-muted); font-size: 12px; }
 .kpi b { display: block; font-size: 28px; margin-top: 4px; }
-.insights-toolbar { background: #fff; border: 1px solid var(--sc-line); border-radius: 14px; align-items: center; }
+.insights-toolbar { background: #fff; border: 1px solid var(--sc-line); border-radius: 14px; align-items: center; flex-wrap: wrap; }
 .range-btns { display: flex; gap: 6px; }
+.range-custom { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin: 0; }
+.range-custom input[type="date"] { min-width: 156px; }
+.range-custom .btn { margin-bottom: 0; }
 .range.is-on {
   background: linear-gradient(135deg, var(--sc-yellow-bright), var(--sc-gold));
   border-color: transparent;
 }
 .chart-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; }
+.chart-grid-compare { margin-top: 12px; grid-template-columns: 1.2fr .9fr; align-items: start; }
+.compare-line { margin: 0 0 8px; color: var(--sc-brown); font-size: 13px; font-weight: 600; }
+.channel-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+.channel-stats li {
+  background: var(--sc-cream);
+  border-radius: 12px;
+  padding: 8px 10px;
+  border-top: 3px solid var(--sc-gold);
+  min-width: 0;
+}
+.channel-stats li[data-channel="line"] { border-top-color: #06c755; }
+.channel-stats li[data-channel="facebook"] { border-top-color: #1877f2; }
+.channel-stats span { display: block; color: var(--sc-muted); font-size: 12px; }
+.channel-stats b { display: block; font-size: 20px; line-height: 1.2; margin: 2px 0; }
+.channel-stats small { display: block; color: var(--sc-muted); font-size: 12px; }
+.chart-box.cat-chart { height: 280px; }
+.chart-box.channel-chart { height: 240px; }
 .chart-card {
   background: #fff;
   border: 1px solid var(--sc-line);
@@ -748,6 +775,7 @@ label small { font-weight: 500; color: var(--sc-muted); }
   .stat-pills { display: none; }
   .list-pane { min-height: 70vh; }
   .kpi-grid, .chart-grid, .top-layout, .users-wrap { grid-template-columns: 1fr; }
+  .channel-stats { grid-template-columns: 1fr; }
   .page-tabs { width: 100%; }
 }
 

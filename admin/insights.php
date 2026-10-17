@@ -8,9 +8,16 @@ $admin = Auth::user();
 $isSuper = Auth::isSuper();
 $allowed = Auth::allowedCategories();
 $categories = Auth::filterCategories((new SheetService())->categories());
+$categoryNames = [];
+foreach ($categories as $cat) {
+    $name = trim((string) ($cat['name'] ?? ''));
+    if ($name !== '') {
+        $categoryNames[] = $name;
+    }
+}
 $log = new AskLog();
 $rows = Auth::filterAskRows($log->all(4000, true));
-$summary = $log->summarize($rows, 14);
+$summary = $log->summarize($rows, 14, null, null, $categoryNames);
 $scopeCats = $isSuper ? 'ทุกหมวด' : implode(', ', $allowed ?? []);
 $adminRows = $isSuper ? $log->adminLog(200) : [];
 
@@ -27,6 +34,37 @@ function thai_when(string $iso): string
 function add_faq_url(string $category, string $question): string
 {
     return 'index.php?add=1&c=' . rawurlencode($category) . '&q=' . rawurlencode($question);
+}
+
+function category_compare_text(array $summary): string
+{
+    $items = array_values((array) ($summary['by_category'] ?? []));
+    if ($items === []) {
+        return 'ยังไม่มีหมวดให้เปรียบเทียบ';
+    }
+    $top = $items[0];
+    $low = $items[count($items) - 1];
+    $total = 0;
+    $zeros = 0;
+    foreach ($items as $item) {
+        $count = (int) ($item['count'] ?? 0);
+        $total += $count;
+        if ($count === 0) {
+            $zeros++;
+        }
+    }
+    if ($total === 0) {
+        return 'ยังไม่มีคำถามในช่วงนี้';
+    }
+    $topPct = (int) round(((int) $top['count']) * 100 / $total);
+    $text = 'ถามมากสุด ' . $top['label'] . ' ' . (int) $top['count'] . ' ครั้ง (' . $topPct . '%)';
+    if ($low['label'] !== $top['label']) {
+        $text .= ' · น้อยสุด ' . $low['label'] . ' ' . (int) $low['count'] . ' ครั้ง';
+    }
+    if ($zeros > 0) {
+        $text .= ' · มี ' . $zeros . ' หมวดที่ยังไม่มีคนถาม';
+    }
+    return $text;
 }
 ?>
 <!DOCTYPE html>
@@ -100,6 +138,17 @@ function add_faq_url(string $category, string $question): string
         <button type="button" class="btn ghost range is-on" data-days="14">14 วัน</button>
         <button type="button" class="btn ghost range" data-days="30">30 วัน</button>
       </div>
+      <form class="range-custom" id="range-custom">
+        <label class="field-inline">
+          <span>ตั้งแต่วันที่</span>
+          <input id="range-from" name="from" type="date" required>
+        </label>
+        <label class="field-inline">
+          <span>ถึงวันที่</span>
+          <input id="range-to" name="to" type="date" required>
+        </label>
+        <button type="submit" class="btn" id="range-apply">แสดงช่วงนี้</button>
+      </form>
       <label class="field-inline">
         <span>หมวด</span>
         <select id="filter-cat">
@@ -126,6 +175,41 @@ function add_faq_url(string $category, string $question): string
         <h3>ช่วงเวลาที่ถามบ่อย</h3>
         <p class="hint">ใช้วางช่วงที่มีเจ้าหน้าที่ดูแล</p>
         <div class="chart-box"><canvas id="chart-hour"></canvas></div>
+      </section>
+    </div>
+
+    <div class="chart-grid chart-grid-compare">
+      <section class="chart-card">
+        <h3>จำนวนคำถามแต่ละหมวด</h3>
+        <p class="hint">แท่งยาวคือหมวดที่ถูกถามมาก แท่งสั้นคือหมวดที่ถูกถามน้อย</p>
+        <p class="compare-line" id="cat-compare"><?= htmlspecialchars(category_compare_text($summary)) ?></p>
+        <div class="chart-box cat-chart" id="chart-cat-box"><canvas id="chart-cat"></canvas></div>
+      </section>
+      <section class="chart-card">
+        <h3>จำนวนผู้ถามแต่ละช่องทาง</h3>
+        <p class="hint" id="channel-hint">เทียบเว็บไซต์ LINE และ Facebook ทั้งจำนวนคนและจำนวนครั้งที่ถาม คนเดิมถามซ้ำนับเป็น 1 คน</p>
+        <ul class="channel-stats" id="channel-stats">
+          <?php
+            $channelLabels = $summary['by_channel']['labels'] ?? ['เว็บไซต์', 'LINE', 'Facebook'];
+            $channelKeys = $summary['by_channel']['keys'] ?? ['web', 'line', 'facebook'];
+            $channelQuestions = $summary['by_channel']['questions'] ?? [0, 0, 0];
+            $channelPeople = $summary['by_channel']['people'] ?? [0, 0, 0];
+            $channelTotal = array_sum($channelQuestions);
+          ?>
+          <?php foreach ($channelLabels as $i => $channelLabel): ?>
+            <?php
+              $channelCount = (int) ($channelQuestions[$i] ?? 0);
+              $channelUsers = (int) ($channelPeople[$i] ?? 0);
+              $channelPct = $channelTotal > 0 ? (int) round($channelCount * 100 / $channelTotal) : 0;
+            ?>
+            <li data-channel="<?= htmlspecialchars((string) ($channelKeys[$i] ?? '')) ?>">
+              <span><?= htmlspecialchars((string) $channelLabel) ?></span>
+              <b><?= $channelUsers ?> คน</b>
+              <small><?= $channelCount ?> ครั้ง · <?= $channelPct ?>% ของคำถาม</small>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="chart-box channel-chart"><canvas id="chart-channel"></canvas></div>
       </section>
     </div>
 
@@ -298,7 +382,7 @@ function add_faq_url(string $category, string $question): string
   <script>
     window.SCIGENIE_INSIGHTS = <?= json_encode([
         'summary' => $summary,
-        'rows' => $isSuper ? array_slice($rows, 0, 400) : [],
+        'rows' => array_slice($rows, 0, 400),
         'base' => $base,
         'isSuper' => $isSuper,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
