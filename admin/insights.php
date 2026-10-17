@@ -16,7 +16,7 @@ foreach ($categories as $cat) {
     }
 }
 $log = new AskLog();
-$rows = Auth::filterAskRows($log->all(4000, true));
+$rows = Auth::filterAskRows($log->all(4000, true), !$isSuper);
 $summary = $log->summarize($rows, 14, null, null, $categoryNames);
 $scopeCats = $isSuper ? 'ทุกหมวด' : implode(', ', $allowed ?? []);
 $adminRows = $isSuper ? $log->adminLog(200) : [];
@@ -84,7 +84,7 @@ function category_compare_text(array $summary): string
       <img src="<?= htmlspecialchars(logo_url()) ?>" alt="SCiGENIE">
       <div>
         <strong>สรุปการถาม–ตอบ</strong>
-        <span><?= $isSuper ? 'ผู้ดูแลระบบเห็นข้อมูลทุกหมวด จากคำถามจริงของผู้ใช้' : 'แสดงเฉพาะหมวดที่คุณดูแล จากคำถามจริงของผู้ใช้' ?></span>
+        <span><?= $isSuper ? 'ผู้ดูแลระบบเห็นข้อมูลทุกหมวด จากคำถามจริงของผู้ใช้' : 'แสดงหมวดที่คุณดูแล และคำถามที่ไม่ได้ระบุหมวด' ?></span>
       </div>
     </div>
     <nav class="page-tabs" aria-label="หน้าผู้จัดการ">
@@ -109,7 +109,7 @@ function category_compare_text(array $summary): string
   <div class="insights-wrap">
     <div class="banner scope-banner">
       กำลังดูข้อมูลจริงของ <b><?= htmlspecialchars($scopeCats !== '' ? $scopeCats : 'ยังไม่ได้กำหนดหมวด') ?></b>
-      <?= $isSuper ? '' : ' — คำถามหมวดอื่นจะไม่แสดงในหน้านี้' ?>
+      <?= $isSuper ? '' : ' และคำถามที่ไม่ได้ระบุหมวด — คำถามหมวดอื่นจะไม่แสดงในหน้านี้' ?>
     </div>
 
     <div class="kpi-grid">
@@ -117,11 +117,11 @@ function category_compare_text(array $summary): string
         <span>คำถามจริง</span>
         <b id="kpi-total"><?= (int) $summary['total'] ?></b>
       </article>
-      <article class="kpi is-ok" data-tab-jump="matched" data-tip="ระบบจับคู่คลัง FAQ ได้ กดเพื่อดูรายการ">
+      <article class="kpi is-ok" <?= $isSuper ? 'data-tab-jump="matched"' : '' ?> data-tip="ระบบจับคู่คลัง FAQ ได้<?= $isSuper ? ' กดเพื่อดูรายการ' : '' ?>">
         <span>ตอบได้</span>
         <b id="kpi-matched"><?= (int) $summary['matched'] ?></b>
       </article>
-      <article class="kpi is-no" data-tab-jump="unmatched" data-tip="ระบบไม่พบคำตอบ ควรเพิ่ม FAQ กดเพื่อดูรายการ">
+      <article class="kpi is-no" <?= $isSuper ? 'data-tab-jump="unmatched"' : '' ?> data-tip="ระบบไม่พบคำตอบ ควรเพิ่ม FAQ<?= $isSuper ? ' กดเพื่อดูรายการ' : '' ?>">
         <span>ไม่พบคำตอบ</span>
         <b id="kpi-unmatched"><?= (int) $summary['unmatched'] ?></b>
       </article>
@@ -156,6 +156,9 @@ function category_compare_text(array $summary): string
           <?php foreach ($categories as $cat): ?>
             <option value="<?= htmlspecialchars($cat['name']) ?>"><?= htmlspecialchars($cat['short'] ?: $cat['name']) ?></option>
           <?php endforeach; ?>
+          <?php if (!$isSuper): ?>
+            <option value="ไม่ระบุหมวด">ไม่ระบุหมวด</option>
+          <?php endif; ?>
         </select>
       </label>
       <label class="field-inline grow">
@@ -165,6 +168,7 @@ function category_compare_text(array $summary): string
       <span class="hint" id="range-hint">กำลังแสดง 14 วันล่าสุด จากคำถามจริง</span>
     </div>
 
+    <?php if ($isSuper): ?>
     <div class="chart-grid">
       <section class="chart-card">
         <h3>จำนวนคำถามรายวัน</h3>
@@ -177,14 +181,17 @@ function category_compare_text(array $summary): string
         <div class="chart-box"><canvas id="chart-hour"></canvas></div>
       </section>
     </div>
+    <?php endif; ?>
 
-    <div class="chart-grid chart-grid-compare">
+    <div class="chart-grid chart-grid-compare<?= $isSuper ? '' : ' is-single' ?>">
+      <?php if ($isSuper): ?>
       <section class="chart-card">
         <h3>จำนวนคำถามแต่ละหมวด</h3>
         <p class="hint">แท่งยาวคือหมวดที่ถูกถามมาก แท่งสั้นคือหมวดที่ถูกถามน้อย</p>
         <p class="compare-line" id="cat-compare"><?= htmlspecialchars(category_compare_text($summary)) ?></p>
         <div class="chart-box cat-chart" id="chart-cat-box"><canvas id="chart-cat"></canvas></div>
       </section>
+      <?php endif; ?>
       <section class="chart-card">
         <h3>จำนวนผู้ถามแต่ละช่องทาง</h3>
         <p class="hint" id="channel-hint">เทียบเว็บไซต์ LINE และ Facebook ทั้งจำนวนคนและจำนวนครั้งที่ถาม คนเดิมถามซ้ำนับเป็น 1 คน</p>
@@ -213,6 +220,22 @@ function category_compare_text(array $summary): string
       </section>
     </div>
 
+    <section class="chart-card outcome-card">
+      <h3>ตอบได้และตอบไม่ได้แต่ละหมวด</h3>
+      <p class="hint">แท่งสีเขียวคือคำถามที่ตอบได้ แท่งสีแดงคือคำถามที่ตอบไม่ได้ คลิกแท่งเพื่อดูรายการคำถามและคำตอบ</p>
+      <p class="compare-line" id="outcome-compare"></p>
+      <div class="chart-box outcome-chart" id="chart-outcome-box"><canvas id="chart-outcome"></canvas></div>
+      <div class="outcome-detail" id="outcome-detail" hidden>
+        <div class="outcome-head">
+          <h3 id="outcome-title">รายการคำถาม</h3>
+          <button type="button" class="btn ghost" id="outcome-close">ปิดรายการ</button>
+        </div>
+        <p class="hint" id="outcome-note"></p>
+        <ul class="outcome-list" id="outcome-list"></ul>
+      </div>
+    </section>
+
+    <?php if ($isSuper): ?>
     <div class="review-tabs" role="tablist">
       <button type="button" class="review-tab is-on" data-tab="unmatched">ไม่พบคำตอบ <b id="tab-unmatched"><?= (int) $summary['unmatched'] ?></b></button>
       <button type="button" class="review-tab" data-tab="matched">ตอบได้ <b id="tab-matched"><?= (int) $summary['matched'] ?></b></button>
@@ -292,6 +315,7 @@ function category_compare_text(array $summary): string
         </table>
       </div>
     </section>
+    <?php endif; ?>
 
     <?php if ($isSuper): ?>
     <section class="chart-card table-card review-panel" data-panel="history" hidden>
@@ -376,7 +400,7 @@ function category_compare_text(array $summary): string
     <span class="coach-ico" aria-hidden="true">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
     </span>
-    <span id="coach-text">เริ่มที่แท็บ «ไม่พบคำตอบ» เพื่อดูคำถามที่ควรถูกเพิ่มในคลัง</span>
+    <span id="coach-text"><?= $isSuper ? 'เริ่มที่แท็บ «ไม่พบคำตอบ» เพื่อดูคำถามที่ควรถูกเพิ่มในคลัง' : 'คลิกแท่งสีเขียวเพื่อดูคำถามที่ตอบได้ หรือแท่งสีแดงเพื่อดูคำถามที่ตอบไม่ได้' ?></span>
   </div>
 
   <script>

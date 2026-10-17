@@ -214,6 +214,7 @@ class AskLog
             ],
             'top' => $top,
             'by_category' => $breakdown['by_category'],
+            'category_details' => $breakdown['category_details'],
             'by_channel' => $breakdown['by_channel'],
             'category_channels' => $breakdown['category_channels'],
             'unmatched_groups' => $this->grouped($filtered, false),
@@ -235,14 +236,22 @@ class AskLog
         $catCounts = [];
         $catQuestions = [];
         $catPeople = [];
+        $catMatchedCount = [];
+        $catUnmatchedCount = [];
+        $catMatched = [];
+        $catUnmatched = [];
 
-        $ensure = static function (string $name) use (&$catCounts, &$catQuestions, &$catPeople, $keys): void {
+        $ensure = static function (string $name) use (&$catCounts, &$catQuestions, &$catPeople, &$catMatchedCount, &$catUnmatchedCount, &$catMatched, &$catUnmatched, $keys): void {
             if (isset($catCounts[$name])) {
                 return;
             }
             $catCounts[$name] = 0;
             $catQuestions[$name] = array_fill_keys($keys, 0);
             $catPeople[$name] = array_fill_keys($keys, []);
+            $catMatchedCount[$name] = 0;
+            $catUnmatchedCount[$name] = 0;
+            $catMatched[$name] = [];
+            $catUnmatched[$name] = [];
         };
 
         foreach ($categoryNames as $name) {
@@ -269,17 +278,37 @@ class AskLog
             if ($visitor !== '') {
                 $catPeople[$category][$channel][$visitor] = true;
             }
+            $asked = trim((string) ($row['question'] ?? ''));
+            $faq = trim((string) ($row['faq'] ?? ''));
+            $answer = trim((string) ($row['answer'] ?? ''));
+            $time = (string) ($row['time'] ?? '');
+            if (!empty($row['matched'])) {
+                $catMatchedCount[$category]++;
+                $label = $faq !== '' ? $faq : $asked;
+                $key = mb_strtolower(preg_replace('/\s+/u', ' ', $label) ?? $label);
+                $this->pushOutcome($catMatched[$category], $key, $label, $asked, $answer, $time);
+            } else {
+                $catUnmatchedCount[$category]++;
+                $key = mb_strtolower(preg_replace('/\s+/u', ' ', $asked) ?? $asked);
+                $this->pushOutcome($catUnmatched[$category], $key, $asked, $asked, '', $time);
+            }
         }
 
         $items = [];
         foreach ($catCounts as $label => $count) {
-            $items[] = ['label' => $label, 'count' => $count];
+            $items[] = [
+                'label' => $label,
+                'count' => $count,
+                'matched' => $catMatchedCount[$label] ?? 0,
+                'unmatched' => $catUnmatchedCount[$label] ?? 0,
+            ];
         }
         usort($items, static function (array $a, array $b): int {
             return $b['count'] <=> $a['count'] ?: strcmp($a['label'], $b['label']);
         });
 
         $categoryChannels = [];
+        $categoryDetails = [];
         foreach ($items as $item) {
             $label = $item['label'];
             $people = [];
@@ -290,10 +319,17 @@ class AskLog
                 'questions' => $catQuestions[$label],
                 'people' => $people,
             ];
+            if ((int) $item['count'] > 0) {
+                $categoryDetails[$label] = [
+                    'matched' => $this->finishOutcome($catMatched[$label] ?? []),
+                    'unmatched' => $this->finishOutcome($catUnmatched[$label] ?? []),
+                ];
+            }
         }
 
         return [
             'by_category' => $items,
+            'category_details' => $categoryDetails,
             'by_channel' => [
                 'labels' => $labels,
                 'keys' => $keys,
@@ -301,6 +337,53 @@ class AskLog
                 'people' => array_map(static fn (string $key): int => count($peopleSets[$key]), $keys),
             ],
             'category_channels' => $categoryChannels,
+        ];
+    }
+
+    /**
+     * @param array<string, array{question: string, answer: string, count: int, last_time: string, samples: list<string>}> $bucket
+     */
+    private function pushOutcome(array &$bucket, string $key, string $label, string $question, string $answer, string $time): void
+    {
+        if ($key === '' || $label === '') {
+            return;
+        }
+        $answer = mb_substr($answer, 0, 500);
+        if (!isset($bucket[$key])) {
+            $bucket[$key] = [
+                'question' => $label,
+                'answer' => $answer,
+                'count' => 0,
+                'last_time' => $time,
+                'samples' => [],
+            ];
+        }
+        $bucket[$key]['count']++;
+        if ($time >= (string) $bucket[$key]['last_time']) {
+            $bucket[$key]['last_time'] = $time;
+            $bucket[$key]['question'] = $label;
+            if ($answer !== '') {
+                $bucket[$key]['answer'] = $answer;
+            }
+        }
+        if ($question !== '' && $question !== $label && count($bucket[$key]['samples']) < 3 && !in_array($question, $bucket[$key]['samples'], true)) {
+            $bucket[$key]['samples'][] = $question;
+        }
+    }
+
+    /**
+     * @param array<string, array{question: string, answer: string, count: int, last_time: string, samples: list<string>}> $bucket
+     * @return array{total: int, items: list<array{question: string, answer: string, count: int, last_time: string, samples: list<string>}>}
+     */
+    private function finishOutcome(array $bucket, int $limit = 30): array
+    {
+        $items = array_values($bucket);
+        usort($items, static function (array $a, array $b): int {
+            return $b['count'] <=> $a['count'] ?: strcmp((string) $b['last_time'], (string) $a['last_time']);
+        });
+        return [
+            'total' => count($items),
+            'items' => array_slice($items, 0, $limit),
         ];
     }
 

@@ -181,7 +181,7 @@ class Auth
             && hash_equals($_SESSION['scigenie_csrf'], $token);
     }
 
-    public static function filterAskRows(array $rows): array
+    public static function filterAskRows(array $rows, bool $includeUncategorized = false): array
     {
         $allowed = self::allowedCategories();
         if ($allowed === null) {
@@ -189,7 +189,13 @@ class Auth
         }
         return array_values(array_filter(
             $rows,
-            static fn ($row) => in_array((string) ($row['category'] ?? ''), $allowed, true)
+            static function ($row) use ($allowed, $includeUncategorized): bool {
+                $category = trim((string) ($row['category'] ?? ''));
+                if ($category === '') {
+                    return $includeUncategorized;
+                }
+                return in_array($category, $allowed, true);
+            }
         ));
     }
 

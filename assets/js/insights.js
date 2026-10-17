@@ -1,6 +1,6 @@
 (function () {
-  const DEFAULT = "เริ่มที่แท็บ «ไม่พบคำตอบ» เพื่อดูคำถามที่ควรถูกเพิ่มในคลัง";
   const coachText = document.getElementById("coach-text");
+  const DEFAULT = (coachText && coachText.textContent.trim()) || "เริ่มที่แท็บ «ไม่พบคำตอบ» เพื่อดูคำถามที่ควรถูกเพิ่มในคลัง";
   const data = window.SCIGENIE_INSIGHTS || { summary: {}, rows: [] };
   const gold = "#d4a017";
   const yellow = "#f4c430";
@@ -63,7 +63,12 @@
     Chart.defaults.color = brown;
   }
 
-  const dayChart = chartsReady ? new Chart(document.getElementById("chart-day"), {
+  function mountChart(id, config) {
+    const canvas = document.getElementById(id);
+    return chartsReady && canvas ? new Chart(canvas, config) : null;
+  }
+
+  const dayChart = mountChart("chart-day", {
     type: "bar",
     data: {
       labels: data.summary.by_day?.labels || [],
@@ -76,9 +81,9 @@
       }]
     },
     options: barOptions("y")
-  }) : null;
+  });
 
-  const hourChart = chartsReady ? new Chart(document.getElementById("chart-hour"), {
+  const hourChart = mountChart("chart-hour", {
     type: "bar",
     data: {
       labels: data.summary.by_hour?.labels || [],
@@ -91,7 +96,7 @@
       }]
     },
     options: barOptions("y", true)
-  }) : null;
+  });
 
   const categoryValuePlugin = {
     id: "categoryValue",
@@ -113,7 +118,7 @@
     }
   };
 
-  const catChart = chartsReady ? new Chart(document.getElementById("chart-cat"), {
+  const catChart = mountChart("chart-cat", {
     type: "bar",
     data: {
       labels: (data.summary.by_category || []).map((item) => item.label),
@@ -127,13 +132,23 @@
     },
     options: categoryOptions(),
     plugins: [categoryValuePlugin]
-  }) : null;
+  });
 
-  const channelChart = chartsReady ? new Chart(document.getElementById("chart-channel"), {
+  const channelChart = mountChart("chart-channel", {
     type: "bar",
     data: channelData(data.summary.by_channel || {}),
     options: channelOptions()
-  }) : null;
+  });
+
+  let outcomePick = null;
+  const outcomeAnswered = "#1f7a4d";
+  const outcomeMissed = "#c0392b";
+
+  const outcomeChart = mountChart("chart-outcome", {
+    type: "bar",
+    data: outcomeChartData(((data.summary && data.summary.by_category) || []).filter((item) => Number(item.matched || 0) + Number(item.unmatched || 0) > 0)),
+    options: outcomeOptions()
+  });
 
   function categoryOptions() {
     return {
@@ -212,6 +227,131 @@
         }
       ]
     };
+  }
+
+  function outcomeItems() {
+    const selected = (filterCat.value || "").trim();
+    let items = ((data.summary && data.summary.by_category) || []).filter((item) => {
+      return Number(item.matched || 0) + Number(item.unmatched || 0) > 0;
+    });
+    if (selected) items = items.filter((item) => item.label === selected);
+    return items;
+  }
+
+  function outcomeChartData(items) {
+    return {
+      labels: items.map((item) => item.label),
+      datasets: [
+        {
+          label: "ตอบได้",
+          data: items.map((item) => Number(item.matched || 0)),
+          backgroundColor: outcomeAnswered,
+          borderRadius: 6,
+          maxBarThickness: 22
+        },
+        {
+          label: "ตอบไม่ได้",
+          data: items.map((item) => Number(item.unmatched || 0)),
+          backgroundColor: outcomeMissed,
+          borderRadius: 6,
+          maxBarThickness: 22
+        }
+      ]
+    };
+  }
+
+  function outcomeOptions() {
+    return {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      onHover(event, elements) {
+        const target = event.native && event.native.target;
+        if (target) target.style.cursor = elements.length ? "pointer" : "default";
+      },
+      onClick(event, elements, chart) {
+        const points = elements.length ? elements : chart.getElementsAtEventForMode(event, "nearest", { intersect: true }, true);
+        if (!points.length) return;
+        const point = points[0];
+        const label = chart.data.labels[point.index];
+        showOutcome(String(label || ""), point.datasetIndex === 0, true);
+      },
+      plugins: {
+        legend: { position: "top", labels: { boxWidth: 14, usePointStyle: true } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.x} ครั้ง`
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: "rgba(184,134,11,.15)" } },
+        y: {
+          stacked: true,
+          grid: { display: false },
+          ticks: {
+            autoSkip: false,
+            font: { size: 12 },
+            callback(value) {
+              const label = this.getLabelForValue(value);
+              return String(label).length > 24 ? String(label).slice(0, 23) + "…" : label;
+            }
+          }
+        }
+      }
+    };
+  }
+
+  function outcomeSummaryText(items) {
+    if (!items.length) return "ยังไม่มีคำถามในช่วงนี้";
+    const matched = items.reduce((sum, item) => sum + Number(item.matched || 0), 0);
+    const unmatched = items.reduce((sum, item) => sum + Number(item.unmatched || 0), 0);
+    return `ตอบได้ ${matched} ครั้ง · ตอบไม่ได้ ${unmatched} ครั้ง ใน ${items.length} หมวด`;
+  }
+
+  function showOutcome(label, matched, scroll) {
+    outcomePick = { label, matched };
+    const panel = document.getElementById("outcome-detail");
+    const title = document.getElementById("outcome-title");
+    const note = document.getElementById("outcome-note");
+    const list = document.getElementById("outcome-list");
+    if (!panel || !title || !note || !list) return;
+    const details = (data.summary && data.summary.category_details && data.summary.category_details[label]) || {};
+    const side = matched ? (details.matched || { total: 0, items: [] }) : (details.unmatched || { total: 0, items: [] });
+    const items = side.items || [];
+    title.textContent = matched
+      ? `หมวด ${label} · คำถามที่ตอบได้`
+      : `หมวด ${label} · คำถามที่ตอบไม่ได้`;
+    const hidden = Math.max(0, Number(side.total || 0) - items.length);
+    note.textContent = items.length
+      ? (hidden ? `แสดง ${items.length} รายการที่ถูกถามบ่อยสุด จากทั้งหมด ${side.total} แบบ` : "เรียงจากถูกถามบ่อยสุด")
+      : (matched ? "ไม่มีคำถามที่ตอบได้ในหมวดนี้" : "ไม่มีคำถามที่ตอบไม่ได้ในหมวดนี้");
+    list.className = "outcome-list " + (matched ? "is-ok" : "is-no");
+    list.innerHTML = items.map((item) => {
+      const samples = (item.samples || []).filter((sample) => sample && sample !== item.question);
+      const answer = matched && item.answer
+        ? `<div class="a"><b>คำตอบ</b><br>${escapeHtml(item.answer)}</div>`
+        : "";
+      const sampleLine = samples.length
+        ? `<div class="samples">ผู้ใช้พิมพ์ว่า ${escapeHtml(samples.join(" · "))}</div>`
+        : "";
+      const add = matched ? "" : `<a class="btn" href="${addUrl(label === "ไม่ระบุหมวด" ? "" : label, item.question)}">เพิ่มคำตอบ</a>`;
+      return `<li>
+        <div class="q">${escapeHtml(item.question || "-")}</div>
+        ${sampleLine}
+        ${answer}
+        <div class="meta">${item.count} ครั้ง · ล่าสุด ${escapeHtml(thaiWhen(item.last_time || ""))}</div>
+        ${add}
+      </li>`;
+    }).join("");
+    panel.hidden = false;
+    if (scroll) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function closeOutcome() {
+    outcomePick = null;
+    const panel = document.getElementById("outcome-detail");
+    if (panel) panel.hidden = true;
   }
 
   function channelOf(row) {
@@ -361,8 +501,10 @@
     document.getElementById("kpi-matched").textContent = s.matched;
     document.getElementById("kpi-unmatched").textContent = s.unmatched;
     document.getElementById("kpi-rate").textContent = s.match_rate + "%";
-    document.getElementById("tab-unmatched").textContent = s.unmatched;
-    document.getElementById("tab-matched").textContent = s.matched;
+    const tabUnmatched = document.getElementById("tab-unmatched");
+    const tabMatched = document.getElementById("tab-matched");
+    if (tabUnmatched) tabUnmatched.textContent = s.unmatched;
+    if (tabMatched) tabMatched.textContent = s.matched;
     if (dayChart) {
       dayChart.data.labels = s.by_day.labels;
       dayChart.data.datasets[0].data = s.by_day.values;
@@ -395,8 +537,8 @@
     const q = (filterQ.value || "").trim();
     const summary = data.summary || {};
     if (q) return channelsFromRows(visibleRows());
-    if (cat && summary.category_channels && summary.category_channels[cat]) {
-      const item = summary.category_channels[cat];
+    if (cat) {
+      const item = (summary.category_channels && summary.category_channels[cat]) || {};
       return {
         labels: ["เว็บไซต์", "LINE", "Facebook"],
         keys: ["web", "line", "facebook"],
@@ -455,6 +597,21 @@
       channelChart.data.datasets[1].data = next.datasets[1].data;
       channelChart.update();
     }
+    const outcomes = outcomeItems();
+    const outcomeLine = document.getElementById("outcome-compare");
+    if (outcomeLine) outcomeLine.textContent = outcomeSummaryText(outcomes);
+    const outcomeBox = document.getElementById("chart-outcome-box");
+    if (outcomeBox) outcomeBox.style.height = Math.min(560, Math.max(220, outcomes.length * 36 + 36)) + "px";
+    if (outcomeChart) {
+      const nextOutcome = outcomeChartData(outcomes);
+      outcomeChart.data.labels = nextOutcome.labels;
+      outcomeChart.data.datasets[0].data = nextOutcome.datasets[0].data;
+      outcomeChart.data.datasets[1].data = nextOutcome.datasets[1].data;
+      outcomeChart.resize();
+      outcomeChart.update();
+    }
+    if (outcomePick && !outcomes.some((item) => item.label === outcomePick.label)) closeOutcome();
+    else if (outcomePick) showOutcome(outcomePick.label, outcomePick.matched);
   }
 
   function inSelectedRange(ts) {
@@ -476,13 +633,18 @@
     return `${t.getDate()} ${months[t.getMonth()]} ${t.getFullYear() + 543} เวลา ${hh}:${mm} น.`;
   }
 
+  function rowCategory(row) {
+    const name = String(row.category || "").trim();
+    return name || "ไม่ระบุหมวด";
+  }
+
   function visibleRows() {
     const cat = (filterCat.value || "").trim();
     const q = (filterQ.value || "").trim().toLowerCase();
     return (data.rows || []).filter((row) => {
       const ts = new Date(row.time || "").getTime();
       if (!Number.isFinite(ts) || !inSelectedRange(ts)) return false;
-      if (cat && String(row.category || "") !== cat) return false;
+      if (cat && rowCategory(row) !== cat) return false;
       if (!q) return true;
       const hay = `${row.question || ""} ${row.faq || ""} ${row.answer || ""} ${row.category || ""}`.toLowerCase();
       return hay.includes(q);
@@ -538,11 +700,13 @@
     document.getElementById("kpi-matched").textContent = useServer ? data.summary.matched : matchedN;
     document.getElementById("kpi-unmatched").textContent = useServer ? data.summary.unmatched : unmatchedN;
     document.getElementById("kpi-rate").textContent = (useServer ? data.summary.match_rate : (rows.length ? Math.round(matchedN * 100 / rows.length) : 0)) + "%";
-    document.getElementById("tab-unmatched").textContent = useServer ? data.summary.unmatched : unmatchedN;
-    document.getElementById("tab-matched").textContent = useServer ? data.summary.matched : matchedN;
+    const tabUnmatched = document.getElementById("tab-unmatched");
+    const tabMatched = document.getElementById("tab-matched");
+    if (tabUnmatched) tabUnmatched.textContent = useServer ? data.summary.unmatched : unmatchedN;
+    if (tabMatched) tabMatched.textContent = useServer ? data.summary.matched : matchedN;
 
     const um = document.getElementById("unmatched-body");
-    um.innerHTML = unmatched.length ? unmatched.map((item) => `
+    if (um) um.innerHTML = unmatched.length ? unmatched.map((item) => `
       <tr class="faq-row">
         <td><span class="count-pill">${item.count}</span></td>
         <td>${escapeHtml(item.category || "-")}</td>
@@ -557,7 +721,7 @@
     `).join("") : '<tr><td colspan="5" class="hint">ยังไม่มีคำถามที่ไม่พบคำตอบในช่วงนี้</td></tr>';
 
     const mb = document.getElementById("matched-body");
-    mb.innerHTML = matched.length ? matched.map((item) => `
+    if (mb) mb.innerHTML = matched.length ? matched.map((item) => `
       <tr class="faq-row">
         <td><span class="count-pill ok">${item.count}</span></td>
         <td>${escapeHtml(item.category || "-")}</td>
@@ -588,6 +752,9 @@
   function escapeHtml(s) {
     return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   }
+
+  const outcomeClose = document.getElementById("outcome-close");
+  if (outcomeClose) outcomeClose.addEventListener("click", closeOutcome);
 
   syncCompareCharts();
 })();

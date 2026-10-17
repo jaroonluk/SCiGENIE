@@ -18,7 +18,7 @@ if (!$bounds['ok']) {
     json_response(['ok' => false, 'error' => $bounds['error']], 422);
 }
 
-$rows = Auth::filterAskRows($log->all(8000, true));
+$rows = Auth::filterAskRows($log->all(8000, true), !Auth::isSuper());
 $categoryNames = [];
 foreach (Auth::filterCategories((new SheetService())->categories()) as $cat) {
     $name = trim((string) ($cat['name'] ?? ''));
