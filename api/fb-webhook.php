@@ -13,7 +13,7 @@ declare(strict_types=1);
  *    https://sci.kku.ac.th/app/SCiGENIE/api/fb-webhook.php
  * 5. Verify token must match FACEBOOK_VERIFY_TOKEN in .env
  *    Default: scigenie-kku-fb-2026
- * 6. Subscribe to: messages, messaging_postbacks
+ * 6. Subscribe to: messages, messaging_postbacks, message_echoes, messaging_handovers
  * 7. Put FACEBOOK_PAGE_ACCESS_TOKEN and FACEBOOK_APP_SECRET in server .env
  *
  * During development only app admins/testers can chat. Public chat needs
@@ -70,7 +70,7 @@ if (!MessengerBot::verifySignature($raw, $signature)) {
     json_response(['ok' => false, 'error' => 'invalid signature'], 403);
 }
 
-$payload = json_decode($raw, true);
+$payload = json_decode($raw, true, 512, JSON_BIGINT_AS_STRING);
 flush_http_response(200, '{"ok":true}');
 if (is_array($payload)) {
     try {

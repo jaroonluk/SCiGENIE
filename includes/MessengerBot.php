@@ -56,26 +56,52 @@ class MessengerBot
         if (!is_array($entries)) {
             return;
         }
+        self::subscribePage();
         foreach ($entries as $entry) {
-            $events = is_array($entry) ? ($entry['messaging'] ?? []) : [];
-            if (!is_array($events)) {
+            if (!is_array($entry)) {
                 continue;
             }
-            foreach ($events as $event) {
-                if (is_array($event)) {
-                    self::handleEvent($event);
+            foreach (['messaging' => false, 'standby' => true] as $key => $standby) {
+                $events = $entry[$key] ?? [];
+                if (!is_array($events)) {
+                    continue;
+                }
+                foreach ($events as $event) {
+                    if (is_array($event)) {
+                        self::handleEvent($event, $standby);
+                    }
                 }
             }
         }
     }
 
-    public static function handleEvent(array $event): void
+    public static function handleEvent(array $event, bool $standby = false): void
     {
+        if (!empty($event['message']['is_echo'])) {
+            $userId = (string) ($event['recipient']['id'] ?? '');
+            if (HumanPass::isHumanEcho($event['message'], self::ourAppId(), self::inboxAppId())) {
+                $fresh = !HumanPass::active(self::userSession($userId));
+                self::holdHuman($userId);
+                if ($fresh) {
+                    self::passThread($userId);
+                }
+            }
+            return;
+        }
+
         $senderId = (string) ($event['sender']['id'] ?? '');
         if ($senderId === '') {
             return;
         }
-        if (!empty($event['message']['is_echo']) || isset($event['delivery']) || isset($event['read'])) {
+        if (isset($event['take_thread_control']) || isset($event['pass_thread_control'])) {
+            self::applyHandover($senderId, $event);
+            return;
+        }
+        if (isset($event['delivery']) || isset($event['read'])) {
+            return;
+        }
+        if ($standby) {
+            self::handleStandby($senderId, $event);
             return;
         }
 
@@ -91,12 +117,20 @@ class MessengerBot
             }
             $text = trim((string) ($event['message']['text'] ?? ''));
             if ($text === '') {
+                if (self::holdIfHuman($senderId)) {
+                    return;
+                }
                 self::send($senderId, [
                     self::textMessage('พิมพ์เป็นข้อความได้เลยค่ะ หรือพิมพ์ “เมนู” เพื่อเลือกหมวด'),
                 ]);
                 return;
             }
-            self::send($senderId, self::processText($senderId, $text));
+            $wasHuman = HumanPass::active(self::userSession($senderId));
+            $messages = self::processText($senderId, $text);
+            self::send($senderId, $messages);
+            if (!$wasHuman && HumanPass::active(self::userSession($senderId))) {
+                self::passThread($senderId);
+            }
         } catch (Throwable $e) {
             error_log('SCiGENIE Facebook: ' . $e->getMessage());
             self::send($senderId, [self::textMessage(
@@ -108,6 +142,18 @@ class MessengerBot
     public static function processText(string $userId, string $text): array
     {
         $text = trim($text);
+        if (HumanPass::isResume($text)) {
+            self::clearSession($userId);
+            return self::welcomeMessages($userId);
+        }
+        if (HumanPass::isPause($text)) {
+            $fresh = !HumanPass::active(self::userSession($userId));
+            self::holdHuman($userId);
+            return $fresh ? [self::textMessage(HumanPass::ack(), [self::menuQuickReply()])] : [];
+        }
+        if (self::holdIfHuman($userId)) {
+            return [];
+        }
         if ($text === '' || self::isMenu($text)) {
             self::clearSession($userId);
             return self::welcomeMessages($userId);
@@ -134,8 +180,11 @@ class MessengerBot
                 self::logAsk($userId, $foundCat, $text, $result);
                 return self::answerMessages($userId, $result, $foundCat);
             }
-            self::logAsk($userId, '', $text, $result);
-            return self::needCategoryMessages($userId, $result);
+            $messages = self::categoryPrompt($userId, $result);
+            if ($messages !== []) {
+                self::logAsk($userId, '', $text, $result);
+            }
+            return $messages;
         }
 
         $result = self::faq()->match($text, $sessionCat);
@@ -155,6 +204,16 @@ class MessengerBot
     private static function handlePostback(string $userId, string $payload): void
     {
         $payload = trim($payload);
+        if ($payload === 'HUMAN' || HumanPass::isPause($payload)) {
+            $fresh = !HumanPass::active(self::userSession($userId));
+            self::holdHuman($userId);
+            if ($fresh) {
+                self::send($userId, [self::textMessage(HumanPass::ack(), [self::menuQuickReply()])]);
+                self::passThread($userId);
+            }
+            return;
+        }
+        self::endHuman($userId);
         if ($payload === '' || $payload === 'MENU' || $payload === 'GET_STARTED' || self::isMenu($payload)) {
             self::clearSession($userId);
             self::send($userId, self::welcomeMessages($userId));
@@ -191,7 +250,10 @@ class MessengerBot
         $categories = self::uniqueCategories(self::categories());
         self::setCatIndex($userId, $categories);
         $messages = self::categoryTemplateMessages($categories, $userId);
-        return $messages !== [] ? $messages : [self::textMessage('🟡 SCiGENIE — ยังไม่มีหมวดคำถามในระบบ')];
+        if ($messages === []) {
+            return [self::textMessage('🟡 SCiGENIE — ยังไม่มีหมวดคำถามในระบบ')];
+        }
+        return self::withStaffQuickReply($messages);
     }
 
     /**
@@ -201,7 +263,23 @@ class MessengerBot
     private static function needCategoryMessages(string $userId, array $result = []): array
     {
         $text = trim((string) ($result['message'] ?? Matcher::needCategoryMessage()));
+        $text .= "\n\n" . HumanPass::passHint();
         return array_merge([self::textMessage($text)], self::welcomeMessages($userId));
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @return list<array<string, mixed>>
+     */
+    private static function categoryPrompt(string $userId, array $result): array
+    {
+        if ($userId !== '' && HumanPass::naggedRecently(self::userSession($userId))) {
+            return [];
+        }
+        if ($userId !== '') {
+            self::writeSession($userId, HumanPass::rememberNag(self::userSession($userId)));
+        }
+        return self::needCategoryMessages($userId, $result);
     }
 
     private static function categorySelectedMessages(string $userId, string $category): array
@@ -263,15 +341,15 @@ class MessengerBot
         }
 
         if (!empty($result['need_category'])) {
-            return self::needCategoryMessages($userId, $result);
+            return self::categoryPrompt($userId, $result);
         }
 
         $msg = $head . trim((string) ($result['message'] ?? Matcher::noMatchMessage()));
         self::setSuggestions($userId, []);
-        return [
+        return self::withStaffQuickReply([
             self::textMessage($msg),
             self::backMenuMessage(),
-        ];
+        ]);
     }
 
     private static function categoryTemplateMessages(array $categories, string $userId = ''): array
@@ -562,6 +640,34 @@ class MessengerBot
         ];
     }
 
+    private static function humanQuickReply(): array
+    {
+        return [
+            'content_type' => 'text',
+            'title' => 'คุยกับเจ้าหน้าที่',
+            'payload' => 'HUMAN',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $messages
+     * @return list<array<string, mixed>>
+     */
+    private static function withStaffQuickReply(array $messages): array
+    {
+        if ($messages === []) {
+            return $messages;
+        }
+        $last = array_key_last($messages);
+        $quick = $messages[$last]['quick_replies'] ?? [];
+        if (!is_array($quick)) {
+            $quick = [];
+        }
+        $quick[] = self::humanQuickReply();
+        $messages[$last]['quick_replies'] = array_slice($quick, 0, 13);
+        return $messages;
+    }
+
     private static function textMessage(string $text, array $quickReplies = [], bool $menuStyle = false): array
     {
         $limit = $menuStyle ? self::MAX_MENU_TEXT : self::MAX_TEXT;
@@ -670,19 +776,32 @@ class MessengerBot
         if (self::$pageSubscribed) {
             return true;
         }
-        $flag = dirname(__DIR__) . '/data/fb-subscribed.flag';
+        $flag = dirname(__DIR__) . '/data/fb-subscribed-v2.flag';
         if (is_file($flag) && (time() - (int) @filemtime($flag)) < 86400) {
             self::$pageSubscribed = true;
             return true;
         }
-        $ok = self::postGraph('me/subscribed_apps', [
-            'subscribed_fields' => 'messages,messaging_postbacks,messaging_optins,message_echoes',
-        ]);
+        $fail = dirname(__DIR__) . '/data/fb-subscribe.fail';
+        if (is_file($fail) && (time() - (int) @filemtime($fail)) < 3600) {
+            return false;
+        }
+        $fields = 'messages,messaging_postbacks,messaging_optins,message_echoes,messaging_handovers';
+        $ok = self::postGraph('me/subscribed_apps', ['subscribed_fields' => $fields]);
+        if (!$ok) {
+            $ok = self::postGraph('me/subscribed_apps', [
+                'subscribed_fields' => 'messages,messaging_postbacks,messaging_optins,message_echoes',
+            ]);
+        }
         if ($ok) {
             self::$pageSubscribed = true;
             @touch($flag);
+            if (is_file($fail)) {
+                @unlink($fail);
+            }
+            return true;
         }
-        return $ok;
+        @touch($fail);
+        return false;
     }
 
     private static function takeThreadControl(string $recipientId): void
@@ -693,6 +812,147 @@ class MessengerBot
         self::postGraph('me/take_thread_control', [
             'recipient' => ['id' => $recipientId],
         ]);
+    }
+
+    private static function passThread(string $recipientId): void
+    {
+        if ($recipientId === '') {
+            return;
+        }
+        $inbox = self::inboxAppId();
+        $target = ctype_digit($inbox) ? (int) $inbox : $inbox;
+        self::postGraph('me/pass_thread_control', [
+            'recipient' => ['id' => $recipientId],
+            'target_app_id' => $target,
+            'metadata' => 'scigenie-human',
+        ]);
+    }
+
+    private static function applyHandover(string $userId, array $event): void
+    {
+        $inbox = self::inboxAppId();
+        $ours = self::ourAppId();
+        if (isset($event['take_thread_control'])) {
+            $owner = trim((string) ($event['take_thread_control']['new_owner_app_id'] ?? ''));
+            if ($ours !== '' && $owner === $ours) {
+                self::endHuman($userId);
+                return;
+            }
+            self::holdHuman($userId);
+            return;
+        }
+        $owner = trim((string) ($event['pass_thread_control']['new_owner_app_id'] ?? ''));
+        if ($owner !== '' && ($owner === $inbox || $owner === HumanPass::INBOX_APP_ID)) {
+            self::holdHuman($userId);
+            return;
+        }
+        self::endHuman($userId);
+    }
+
+    private static function handleStandby(string $userId, array $event): void
+    {
+        $payload = trim((string) ($event['postback']['payload'] ?? $event['message']['quick_reply']['payload'] ?? ''));
+        $text = trim((string) ($event['message']['text'] ?? ''));
+        if ($payload === 'HUMAN' || HumanPass::isPause($text) || HumanPass::isPause($payload)) {
+            self::holdHuman($userId);
+            return;
+        }
+        $resume = $payload === 'MENU'
+            || $payload === 'GET_STARTED'
+            || HumanPass::isResume($text)
+            || HumanPass::isResume($payload);
+        $botAction = $payload !== '' && (str_starts_with($payload, 'CAT') || str_starts_with($payload, 'Q'));
+        if ($resume || $botAction) {
+            self::takeThreadControl($userId);
+            self::endHuman($userId);
+            if ($payload !== '') {
+                self::handlePostback($userId, $payload);
+                return;
+            }
+            self::send($userId, self::processText($userId, $text));
+            return;
+        }
+        self::holdHuman($userId);
+    }
+
+    private static function inboxAppId(): string
+    {
+        $id = trim((string) config('facebook_inbox_app_id', ''));
+        return $id !== '' ? $id : HumanPass::INBOX_APP_ID;
+    }
+
+    private static function ourAppId(): string
+    {
+        static $memo = null;
+        if (is_string($memo)) {
+            return $memo;
+        }
+        $fromEnv = trim((string) config('facebook_app_id', ''));
+        if ($fromEnv !== '') {
+            return $memo = $fromEnv;
+        }
+        $file = dirname(__DIR__) . '/data/fb-app-id.txt';
+        if (is_file($file) && (time() - (int) @filemtime($file)) < 7 * 86400) {
+            $cached = trim((string) @file_get_contents($file));
+            if ($cached !== '') {
+                return $memo = $cached;
+            }
+        }
+        $fail = dirname(__DIR__) . '/data/fb-app-id.fail';
+        if (is_file($fail) && (time() - (int) @filemtime($fail)) < 3600) {
+            return $memo = '';
+        }
+        $id = self::fetchAppId();
+        if ($id === '') {
+            @touch($fail);
+            return $memo = '';
+        }
+        if (is_file($fail)) {
+            @unlink($fail);
+        }
+        @file_put_contents($file, $id, LOCK_EX);
+        return $memo = $id;
+    }
+
+    private static function fetchAppId(): string
+    {
+        $token = (string) config('facebook_page_access_token', '');
+        if ($token === '') {
+            return '';
+        }
+        $url = 'https://graph.facebook.com/v21.0/debug_token?input_token='
+            . rawurlencode($token)
+            . '&access_token='
+            . rawurlencode($token);
+        $raw = self::httpGet($url);
+        if ($raw === null) {
+            return '';
+        }
+        $decoded = json_decode($raw, true);
+        return trim((string) (is_array($decoded) ? ($decoded['data']['app_id'] ?? '') : ''));
+    }
+
+    private static function httpGet(string $url): ?string
+    {
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 5,
+            ]);
+            $out = curl_exec($ch);
+            curl_close($ch);
+            return is_string($out) ? $out : null;
+        }
+        $ctx = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 5,
+                'ignore_errors' => true,
+            ],
+        ]);
+        $out = @file_get_contents($url, false, $ctx);
+        return is_string($out) ? $out : null;
     }
 
     private static function postGraph(string $path, array $body): bool
@@ -754,7 +1014,7 @@ class MessengerBot
         if ($token === '') {
             return false;
         }
-        $flag = dirname(__DIR__) . '/data/fb-menu.flag';
+        $flag = dirname(__DIR__) . '/data/fb-menu-v2.flag';
         if (!$force && is_file($flag) && (time() - (int) @filemtime($flag)) < 86400) {
             return true;
         }
@@ -767,18 +1027,31 @@ class MessengerBot
             'persistent_menu' => [[
                 'locale' => 'default',
                 'composer_input_disabled' => false,
-                'call_to_actions' => [[
-                    'type' => 'postback',
-                    'title' => 'เลือกหมวดคำถาม',
-                    'payload' => 'MENU',
-                ]],
+                'call_to_actions' => [
+                    [
+                        'type' => 'postback',
+                        'title' => 'เลือกหมวดคำถาม',
+                        'payload' => 'MENU',
+                    ],
+                    [
+                        'type' => 'postback',
+                        'title' => 'คุยกับเจ้าหน้าที่',
+                        'payload' => 'HUMAN',
+                    ],
+                ],
             ]],
         ]);
         self::postGraph('me/messenger_profile', [
-            'ice_breakers' => [[
-                'question' => 'เลือกหมวดคำถาม',
-                'payload' => 'MENU',
-            ]],
+            'ice_breakers' => [
+                [
+                    'question' => 'เลือกหมวดคำถาม',
+                    'payload' => 'MENU',
+                ],
+                [
+                    'question' => 'คุยกับเจ้าหน้าที่',
+                    'payload' => 'HUMAN',
+                ],
+            ],
         ]);
         if ($ok) {
             $dir = dirname($flag);
@@ -963,6 +1236,33 @@ class MessengerBot
             return '';
         }
         return trim((string) ($suggest[$index] ?? ''));
+    }
+
+    private static function holdIfHuman(string $userId): bool
+    {
+        if (!HumanPass::active(self::userSession($userId))) {
+            return false;
+        }
+        self::holdHuman($userId);
+        return true;
+    }
+
+    private static function holdHuman(string $userId): void
+    {
+        if ($userId === '') {
+            return;
+        }
+        self::writeSession($userId, HumanPass::hold(self::userSession($userId)));
+    }
+
+    private static function endHuman(string $userId): void
+    {
+        $row = self::userSession($userId);
+        if (!isset($row['human_until'])) {
+            return;
+        }
+        unset($row['human_until']);
+        self::writeSession($userId, $row);
     }
 
     private static function clearSession(string $userId): void

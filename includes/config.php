@@ -37,6 +37,8 @@ return [
     'facebook_page_access_token' => env_value('FACEBOOK_PAGE_ACCESS_TOKEN'),
     'facebook_app_secret' => env_value('FACEBOOK_APP_SECRET'),
     'facebook_verify_token' => env_value('FACEBOOK_VERIFY_TOKEN', 'scigenie-kku-fb-2026'),
+    'facebook_app_id' => env_value('FACEBOOK_APP_ID'),
+    'facebook_inbox_app_id' => env_value('FACEBOOK_INBOX_APP_ID', '263902037430900'),
     'openai_api_key' => env_value('OPENAI_API_KEY'),
     'openai_model' => env_value('OPENAI_MODEL', 'claude-haiku-4.5'),
     'openai_base_url' => env_value('OPENAI_BASE_URL', 'https://api.openai.com/v1'),

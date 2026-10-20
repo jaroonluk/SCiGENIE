@@ -48,6 +48,9 @@ class LineBot
             }
             $msgType = (string) ($event['message']['type'] ?? '');
             if ($msgType !== 'text') {
+                if (self::holdIfHuman($userId)) {
+                    return;
+                }
                 self::reply($replyToken, [self::textMessage('พิมพ์เป็นข้อความได้เลยค่ะ หรือพิมพ์ “เมนู” เพื่อเลือกหมวด')]);
                 return;
             }
@@ -63,6 +66,9 @@ class LineBot
 
     public static function replyTextForAsk(array $result): string
     {
+        if (!empty($result['need_category'])) {
+            return trim((string) ($result['message'] ?? Matcher::needCategoryMessage()));
+        }
         return self::replyTextFromMessages(self::answerMessages('', $result, ''));
     }
 
@@ -80,6 +86,16 @@ class LineBot
     public static function processText(string $userId, string $text): array
     {
         $text = trim($text);
+        if (HumanPass::isResume($text)) {
+            self::clearSession($userId);
+            return self::welcomeMessages();
+        }
+        if (HumanPass::isPause($text)) {
+            return self::pauseForHuman($userId);
+        }
+        if (self::holdIfHuman($userId)) {
+            return [];
+        }
         if ($text === '' || self::isMenu($text)) {
             self::clearSession($userId);
             return self::welcomeMessages();
@@ -106,8 +122,11 @@ class LineBot
                 self::logAsk($userId, $foundCat, $text, $result);
                 return self::answerMessages($userId, $result, $foundCat);
             }
-            self::logAsk($userId, '', $text, $result);
-            return self::needCategoryMessages($result);
+            $messages = self::categoryPrompt($userId, $result);
+            if ($messages !== []) {
+                self::logAsk($userId, '', $text, $result);
+            }
+            return $messages;
         }
 
         $result = self::faq()->match($text, $sessionCat);
@@ -143,6 +162,7 @@ class LineBot
 
     private static function handlePostback(string $replyToken, string $userId, string $data): void
     {
+        self::endHuman($userId);
         parse_str($data, $params);
         $cat = trim((string) ($params['cat'] ?? ''));
         $faqId = trim((string) ($params['faq'] ?? ''));
@@ -178,6 +198,9 @@ class LineBot
         $categories = self::categories();
         $flex = self::categoryFlex($categories);
         if ($flex !== null) {
+            $flex['quickReply'] = [
+                'items' => array_merge([self::staffQuickReply()], self::menuQuickReplies()),
+            ];
             return [$flex];
         }
         return [self::textMessage('SCiGENIE — ยังไม่มีหมวดคำถามในระบบ')];
@@ -190,12 +213,32 @@ class LineBot
     private static function needCategoryMessages(array $result = []): array
     {
         $text = trim((string) ($result['message'] ?? Matcher::needCategoryMessage()));
+        $text .= "\n\n" . HumanPass::passHint();
         $msgs = [self::textMessage($text)];
         $flex = self::categoryFlex(self::categories());
         if ($flex !== null) {
             $msgs[] = $flex;
         }
+        $last = array_key_last($msgs);
+        $msgs[$last]['quickReply'] = [
+            'items' => array_merge([self::staffQuickReply()], self::menuQuickReplies()),
+        ];
         return $msgs;
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @return list<array<string, mixed>>
+     */
+    private static function categoryPrompt(string $userId, array $result): array
+    {
+        if ($userId !== '' && HumanPass::naggedRecently(self::userSession($userId))) {
+            return [];
+        }
+        if ($userId !== '') {
+            self::writeSession($userId, HumanPass::rememberNag(self::userSession($userId)));
+        }
+        return self::needCategoryMessages($result);
     }
 
     private static function categoryListText(array $categories): string
@@ -238,7 +281,7 @@ class LineBot
         }
 
         if (!empty($result['need_category'])) {
-            return self::needCategoryMessages($result);
+            return self::categoryPrompt($userId, $result);
         }
 
         $msg = $head . trim((string) ($result['message'] ?? Matcher::noMatchMessage()));
@@ -258,6 +301,7 @@ class LineBot
             }
         }
         $quick = $items !== [] ? array_merge(self::questionQuickReplies($items), self::menuQuickReplies()) : self::menuQuickReplies();
+        $quick = array_slice(array_merge([self::staffQuickReply()], $quick), 0, 13);
         self::setSuggestions($userId, $items);
         return [self::textMessage($msg, $quick)];
     }
@@ -322,6 +366,18 @@ class LineBot
                 'text' => 'เมนู',
             ],
         ]];
+    }
+
+    private static function staffQuickReply(): array
+    {
+        return [
+            'type' => 'action',
+            'action' => [
+                'type' => 'message',
+                'label' => 'คุยกับเจ้าหน้าที่',
+                'text' => 'คุยกับเจ้าหน้าที่',
+            ],
+        ];
     }
 
     private static function questionListFlex(array $questions, string $category, string $heading): ?array
@@ -858,6 +914,43 @@ class LineBot
         $row = self::userSession($userId);
         $row['suggest'] = array_values($questions);
         $row['ts'] = time();
+        self::writeSession($userId, $row);
+    }
+
+    private static function pauseForHuman(string $userId): array
+    {
+        $fresh = !HumanPass::active(self::userSession($userId));
+        self::holdHuman($userId);
+        if (!$fresh) {
+            return [];
+        }
+        return [self::textMessage(HumanPass::ack(), self::menuQuickReplies())];
+    }
+
+    private static function holdIfHuman(string $userId): bool
+    {
+        if (!HumanPass::active(self::userSession($userId))) {
+            return false;
+        }
+        self::holdHuman($userId);
+        return true;
+    }
+
+    private static function holdHuman(string $userId): void
+    {
+        if ($userId === '') {
+            return;
+        }
+        self::writeSession($userId, HumanPass::hold(self::userSession($userId)));
+    }
+
+    private static function endHuman(string $userId): void
+    {
+        $row = self::userSession($userId);
+        if (!isset($row['human_until'])) {
+            return;
+        }
+        unset($row['human_until']);
         self::writeSession($userId, $row);
     }
 

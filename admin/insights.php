@@ -90,6 +90,7 @@ function category_compare_text(array $summary): string
     <nav class="page-tabs" aria-label="หน้าผู้จัดการ">
       <a class="tab" href="index.php">คลังคำถาม</a>
       <a class="tab active" href="insights.php">สรุปการถาม</a>
+      <a class="tab" href="websites.php">เว็บอ้างอิง</a>
       <?php if ($isSuper): ?>
         <a class="tab" href="users.php">ผู้ใช้ระบบ</a>
       <?php endif; ?>

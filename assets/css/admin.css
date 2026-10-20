@@ -555,6 +555,23 @@ label small { font-weight: 500; color: var(--sc-muted); }
   max-width: min(480px, calc(100vw - 32px));
 }
 
+.sql-box {
+  white-space: pre-wrap;
+  background: #fff;
+  border: 1px solid var(--sc-line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow: auto;
+}
+.site-form {
+  display: grid;
+  gap: 8px;
+  max-width: 720px;
+}
+.site-form .form-actions { margin-top: 8px; }
+
 .page-tabs { display: flex; gap: 6px; }
 .tab {
   padding: 8px 12px;

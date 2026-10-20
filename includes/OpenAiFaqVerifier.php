@@ -149,7 +149,7 @@ class OpenAiFaqVerifier
             $payload['response_format'] = ['type' => 'json_object'];
         }
 
-        $raw = self::httpPost($payload);
+        $raw = self::httpPost($payload, self::TIMEOUT_SEC);
         if ($raw === null || $raw === '') {
             return null;
         }
@@ -162,7 +162,7 @@ class OpenAiFaqVerifier
             $lower = strtolower($msg);
             if (isset($payload['response_format']) && (str_contains($lower, 'response_format') || str_contains($lower, 'json_object'))) {
                 unset($payload['response_format']);
-                $raw = self::httpPost($payload);
+                $raw = self::httpPost($payload, self::TIMEOUT_SEC);
                 if ($raw === null || $raw === '') {
                     return null;
                 }
@@ -232,7 +232,35 @@ class OpenAiFaqVerifier
         ];
     }
 
-    private static function httpPost(array $payload): ?string
+    public static function complete(string $system, string $user, int $maxTokens = 500, int $timeout = 6): ?string
+    {
+        if (!self::configured()) {
+            return null;
+        }
+        $payload = [
+            'model' => self::model(),
+            'temperature' => 0,
+            'max_tokens' => max(80, min(800, $maxTokens)),
+            'messages' => [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+        ];
+        $raw = self::httpPost($payload, max(2, $timeout));
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || isset($decoded['error'])) {
+            $msg = is_array($decoded) ? (string) ($decoded['error']['message'] ?? '') : $raw;
+            error_log('SCiGENIE OpenAI: ' . mb_substr($msg, 0, 300));
+            return null;
+        }
+        $text = trim((string) ($decoded['choices'][0]['message']['content'] ?? ''));
+        return $text !== '' ? $text : null;
+    }
+
+    private static function httpPost(array $payload, int $timeout = self::TIMEOUT_SEC): ?string
     {
         $key = self::apiKey();
         $url = self::chatCompletionsUrl();
@@ -256,7 +284,7 @@ class OpenAiFaqVerifier
                 CURLOPT_POSTFIELDS => $body,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => 2,
-                CURLOPT_TIMEOUT => self::TIMEOUT_SEC,
+                CURLOPT_TIMEOUT => max(2, $timeout),
             ]);
             $out = curl_exec($ch);
             $err = curl_error($ch);
@@ -275,7 +303,7 @@ class OpenAiFaqVerifier
                 'method' => 'POST',
                 'header' => implode("\r\n", $headers) . "\r\n",
                 'content' => $body,
-                'timeout' => self::TIMEOUT_SEC,
+                'timeout' => max(2, $timeout),
                 'ignore_errors' => true,
             ],
         ]);

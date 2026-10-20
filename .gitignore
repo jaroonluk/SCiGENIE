@@ -8,7 +8,13 @@ data/ask-log.jsonl
 data/line-sessions.json
 data/fb-sessions.json
 data/fb-subscribed.flag
+data/fb-subscribed-v2.flag
 data/fb-menu.flag
+data/fb-menu-v2.flag
+data/fb-app-id.txt
+data/fb-app-id.fail
+data/fb-subscribe.fail
+data/web-cache/
 .idea/
 tools/sheet.csv
 Thumbs.db

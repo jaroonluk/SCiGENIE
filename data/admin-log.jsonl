@@ -100,9 +100,12 @@
 {"id":"adm-6acca1020dae61.38538844","time":"2026-10-12T15:57:38+07:00","admin_email":"mparach@kku.ac.th","admin_name":"Parach Khotisan","admin_role":"manager","action":"faq_edit","detail":{"id":"161","category":"บัณฑิตศึกษา","question":"เอกสารที่จะต้องยื่นเพื่อขอสำเร็จการศึกษาระดับบัณฑิตศึกษา"}}
 {"id":"adm-6acdbbf8604e56.32047987","time":"2026-10-13T12:04:56+07:00","admin_email":"thitimap@kku.ac.th","admin_name":"Thitima Phrommachak","admin_role":"manager","action":"login","detail":{"email":"thitimap@kku.ac.th"}}
 {"id":"adm-6ad3471f6f10f5.52544811","time":"2026-10-17T16:59:59+07:00","admin_email":"jaroonluk@kku.ac.th","admin_name":"Jaroonluk Trongdee","admin_role":"super","action":"login","detail":{"email":"jaroonluk@kku.ac.th"}}
+<<<<<<< HEAD
 {"id":"adm-6ad3f44a930e69.18973164","time":"2026-10-18T05:18:50+07:00","admin_email":"jaroonluk@kku.ac.th","admin_name":"Jaroonluk Trongdee","admin_role":"super","action":"login","detail":{"email":"jaroonluk@kku.ac.th"}}
 {"id":"adm-6ad4a80cd4f266.46975101","time":"2026-10-18T18:05:48+07:00","admin_email":"jaroonluk@kku.ac.th","admin_name":"Jaroonluk Trongdee","admin_role":"super","action":"login","detail":{"email":"jaroonluk@kku.ac.th"}}
 {"id":"adm-6ad4a8897904c6.50614402","time":"2026-10-18T18:07:53+07:00","admin_email":"jaroonluk@kku.ac.th","admin_name":"Jaroonluk Trongdee","admin_role":"super","action":"faq_edit","detail":{"id":"133","category":"ศูนย์บริหารจัดการห้องเรียนวิทยาศาสตร์ในโรงเรียน (วมว.-มข.)","question":"scius วมว.มข   ค่าใช้จ่าย ค่าเทอม เท่าไหร่"}}
 {"id":"adm-6ad5b396964c82.64324758","time":"2026-10-19T13:07:18+07:00","admin_email":"jaroonluk@kku.ac.th","admin_name":"Jaroonluk Trongdee","admin_role":"super","action":"login","detail":{"email":"jaroonluk@kku.ac.th"}}
 {"id":"adm-6ad5b3fc1b2094.32881575","time":"2026-10-19T13:09:00+07:00","admin_email":"jaroonluk@kku.ac.th","admin_name":"Jaroonluk Trongdee","admin_role":"super","action":"faq_add","detail":{"id":"162","category":"ทั่วไป","question":"ขอบคุณค่ะ"}}
 {"id":"adm-6ad6f485a437c0.48881468","time":"2026-10-20T11:56:37+07:00","admin_email":"jaroonluk@kku.ac.th","admin_name":"Jaroonluk Trongdee","admin_role":"super","action":"login","detail":{"email":"jaroonluk@kku.ac.th"}}
+=======
+>>>>>>> e9be79a31c7e006e3cbc62647992bfa7dc56b729

@@ -38,7 +38,10 @@
     if (data.matched && data.item) {
       const item = data.item;
       const other = data.other_category ? `<div class="answer-kicker">พบในหมวด «${escapeHtml(item.category || "")}»</div>` : "";
-      answerBox.innerHTML = `${asked}<article class="answer">${other}<div class="answer-kicker">คำตอบ</div><div class="answer-body">${formatAnswer(item.answer || "")}</div></article>`;
+      const source = item.source_url
+        ? `<p class="answer-kicker">แหล่งข้อมูล <a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener">${escapeHtml(item.source_title || item.source_url)}</a></p>`
+        : "";
+      answerBox.innerHTML = `${asked}<article class="answer">${other}<div class="answer-kicker">คำตอบ</div><div class="answer-body">${formatAnswer(item.answer || "")}</div>${source}</article>`;
     } else {
       answerBox.innerHTML = `${asked}<article class="answer"><div class="answer-kicker">คำตอบ</div><div class="answer-body">${formatAnswer(data.message || "ยังไม่พบคำตอบที่ตรงกัน")}</div></article>`;
     }

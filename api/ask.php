@@ -27,7 +27,7 @@ if ($channel === 'line' || $userId !== '') {
 
 $sheet = new SheetService();
 $matcher = new Matcher();
-$result = $matcher->ask($sheet->all(), $question, $category);
+$result = WebSources::enrich($matcher->ask($sheet->all(), $question, $category), $question);
 $result['ok'] = true;
 $matchedCat = trim((string) ($result['item']['category'] ?? ''));
 $result['category'] = (!empty($result['matched']) && $matchedCat !== '') ? $matchedCat : $category;

@@ -34,7 +34,8 @@ class FaqService
 
     public function match(string $question, string $category = ''): array
     {
-        return (new Matcher())->ask($this->all(), $question, $category);
+        $result = (new Matcher())->ask($this->all(), $question, $category);
+        return WebSources::enrich($result, $question);
     }
 
     public function suggest(string $category = '', int $limit = 6): array

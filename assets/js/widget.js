@@ -312,7 +312,10 @@
         applyCategory(item.category);
       }
       const other = data.other_category ? `<div class="scg-meta">พบคำตอบในหมวด «${escapeHtml(item.category)}»</div>` : "";
-      addBot(`${other}<div class="scg-meta">คำตอบ</div>${formatAnswer(item.answer)}`);
+      const source = item.source_url
+        ? `<div class="scg-meta">แหล่งข้อมูล <a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener">${escapeHtml(item.source_title || item.source_url)}</a></div>`
+        : "";
+      addBot(`${other}<div class="scg-meta">คำตอบ</div>${formatAnswer(item.answer)}${source}`);
       return;
     }
     addBot(formatAnswer(data.message || "ขออภัยค่ะ ข้อมูลส่วนนี้ไม่มีในระบบที่ตรวจสอบได้ในขณะนี้"));

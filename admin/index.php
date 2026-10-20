@@ -51,6 +51,7 @@ function faq_payload(array $row): array
     <nav class="page-tabs" aria-label="หน้าผู้จัดการ">
       <a class="tab active" href="index.php" data-tip="หน้าปัจจุบัน สำหรับเพิ่ม แก้ไข ลบคำถาม">คลังคำถาม</a>
       <a class="tab" href="insights.php" data-tip="ดูว่าใครถามอะไร เมื่อไหร่ ระบบตอบอย่างไร พร้อมกราฟ">สรุปการถาม</a>
+      <a class="tab" href="websites.php" data-tip="กำหนดเว็บไซต์ที่ SCiGENIE ค้นเมื่อคลังคำถามไม่มีคำตอบ">เว็บอ้างอิง</a>
       <?php if ($isSuper): ?>
         <a class="tab" href="users.php" data-tip="กำหนดผู้มีสิทธิ์เข้าใช้ระบบ และหมวดที่ดูแล">ผู้ใช้ระบบ</a>
       <?php endif; ?>

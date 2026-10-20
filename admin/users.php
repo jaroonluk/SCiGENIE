@@ -32,6 +32,7 @@ $admin = Auth::user();
     <nav class="page-tabs" aria-label="หน้าผู้จัดการ">
       <a class="tab" href="index.php">คลังคำถาม</a>
       <a class="tab" href="insights.php">สรุปการถาม</a>
+      <a class="tab" href="websites.php">เว็บอ้างอิง</a>
       <a class="tab active" href="users.php">ผู้ใช้ระบบ</a>
     </nav>
     <nav class="top-actions">
