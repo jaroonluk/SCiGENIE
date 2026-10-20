@@ -39,6 +39,7 @@ if ($question !== '') {
     $log = new AskLog();
     $log->record([
         'visitor' => $visitor,
+        'channel' => 'web',
         'category' => $result['category'],
         'question' => $question,
         'matched' => !empty($result['matched']),

@@ -1018,6 +1018,7 @@ class MessengerBot
             $item = $result['item'] ?? [];
             (new AskLog())->record([
                 'visitor' => 'FB' . substr(preg_replace('/[^A-Za-z0-9]/', '', $userId) ?? '', -5),
+                'channel' => 'facebook',
                 'category' => $category,
                 'question' => $question,
                 'matched' => !empty($result['matched']),

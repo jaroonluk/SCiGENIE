@@ -201,7 +201,7 @@ function google_redirect_uri(): string
 
 function logo_url(): string
 {
-    return app_base_path() . '/assets/img/logo.jpg';
+    return app_base_path() . '/assets/img/SCiGENIE_logo.png';
 }
 
 function json_response(array $data, int $status = 200): void

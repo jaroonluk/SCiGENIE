@@ -17,10 +17,12 @@ class AskLog
 
     public function record(array $entry): void
     {
+        $visitorRaw = (string) ($entry['visitor'] ?? '');
         $row = [
             'id' => uniqid('ask-', true),
             'time' => date('c'),
-            'visitor' => $this->visitorLabel($entry['visitor'] ?? ''),
+            'visitor' => $this->visitorLabel($visitorRaw),
+            'channel' => self::normalizeChannel((string) ($entry['channel'] ?? ''), $visitorRaw),
             'category' => trim((string) ($entry['category'] ?? '')),
             'question' => trim((string) ($entry['question'] ?? '')),
             'matched' => !empty($entry['matched']),
@@ -74,21 +76,82 @@ class AskLog
         return array_reverse($rows);
     }
 
-    public function summarize(array $rows, int $days = 14): array
+    /**
+     * @return array{ok: bool, error: string, mode: string, from: string, to: string, from_ts: int, to_ts: int, days: int}
+     */
+    public function rangeBounds(int $days = 14, ?string $from = null, ?string $to = null): array
     {
-        $since = strtotime('-' . max(1, $days) . ' days midnight');
+        $from = trim((string) $from);
+        $to = trim((string) $to);
+        if ($from !== '' || $to !== '') {
+            $start = $this->parseDay($from);
+            $end = $this->parseDay($to);
+            if ($start === null || $end === null) {
+                return $this->rangeError('ระบุวันที่เริ่มและวันที่สิ้นสุดให้ครบ');
+            }
+            if ($start > $end) {
+                return $this->rangeError('วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด');
+            }
+            $span = (int) floor(($end - $start) / 86400) + 1;
+            if ($span > 366) {
+                return $this->rangeError('เลือกช่วงได้ไม่เกิน 366 วัน');
+            }
+            return [
+                'ok' => true,
+                'error' => '',
+                'mode' => 'custom',
+                'from' => date('Y-m-d', $start),
+                'to' => date('Y-m-d', $end),
+                'from_ts' => $start,
+                'to_ts' => $end + 86399,
+                'days' => $span,
+            ];
+        }
+
+        $days = max(1, $days);
+        $since = strtotime('-' . $days . ' days midnight') ?: strtotime('today');
+        $until = strtotime('today 23:59:59') ?: time();
+        return [
+            'ok' => true,
+            'error' => '',
+            'mode' => 'days',
+            'from' => date('Y-m-d', $since),
+            'to' => date('Y-m-d', $until),
+            'from_ts' => (int) $since,
+            'to_ts' => (int) $until,
+            'days' => $days,
+        ];
+    }
+
+    public function summarize(array $rows, int $days = 14, ?string $from = null, ?string $to = null, array $categoryNames = []): array
+    {
+        $bounds = $this->rangeBounds($days, $from, $to);
+        if (!$bounds['ok']) {
+            $bounds = $this->rangeBounds($days);
+        }
+        $since = $bounds['from_ts'];
+        $until = $bounds['to_ts'];
         $filtered = [];
         foreach ($rows as $row) {
             $ts = strtotime((string) ($row['time'] ?? '')) ?: 0;
-            if ($ts >= $since) {
+            if ($ts >= $since && $ts <= $until) {
                 $filtered[] = $row;
             }
         }
 
         $byDay = [];
-        for ($i = $days - 1; $i >= 0; $i--) {
-            $key = date('Y-m-d', strtotime("-{$i} days"));
-            $byDay[$key] = 0;
+        if ($bounds['mode'] === 'custom') {
+            $cursor = strtotime($bounds['from'] . ' midnight') ?: $since;
+            $last = strtotime($bounds['to'] . ' midnight') ?: $until;
+            while ($cursor <= $last) {
+                $byDay[date('Y-m-d', $cursor)] = 0;
+                $cursor = strtotime('+1 day', $cursor) ?: ($cursor + 86400);
+            }
+        } else {
+            for ($i = $bounds['days'] - 1; $i >= 0; $i--) {
+                $key = date('Y-m-d', strtotime("-{$i} days"));
+                $byDay[$key] = 0;
+            }
         }
         $byHour = array_fill(0, 24, 0);
         $faqCounts = [];
@@ -124,9 +187,15 @@ class AskLog
 
         $peakHour = array_keys($byHour, max($byHour) ?: 0)[0] ?? 0;
         $topFaq = $top[0]['label'] ?? 'ยังไม่มีข้อมูล';
+        $breakdown = $this->breakdown($filtered, $categoryNames);
 
         return [
-            'days' => $days,
+            'days' => $bounds['days'],
+            'mode' => $bounds['mode'],
+            'from' => $bounds['from'],
+            'to' => $bounds['to'],
+            'from_ts' => $since,
+            'to_ts' => $until,
             'total' => count($filtered),
             'unique_visitors' => count(array_filter(array_keys($visitors))),
             'matched' => $matched,
@@ -144,8 +213,227 @@ class AskLog
                 'values' => array_values($byHour),
             ],
             'top' => $top,
+            'by_category' => $breakdown['by_category'],
+            'category_details' => $breakdown['category_details'],
+            'by_channel' => $breakdown['by_channel'],
+            'category_channels' => $breakdown['category_channels'],
             'unmatched_groups' => $this->grouped($filtered, false),
             'matched_groups' => $this->grouped($filtered, true),
+        ];
+    }
+
+    /**
+     * @param list<string> $categoryNames
+     * @param list<array<string, mixed>> $rows
+     * @return array{by_category: list<array{label: string, count: int}>, by_channel: array{labels: list<string>, keys: list<string>, questions: list<int>, people: list<int>}, category_channels: array<string, array{questions: array<string, int>, people: array<string, int>}>}
+     */
+    private function breakdown(array $rows, array $categoryNames): array
+    {
+        $keys = ['web', 'line', 'facebook'];
+        $labels = ['เว็บไซต์', 'LINE', 'Facebook'];
+        $questions = array_fill_keys($keys, 0);
+        $peopleSets = array_fill_keys($keys, []);
+        $catCounts = [];
+        $catQuestions = [];
+        $catPeople = [];
+        $catMatchedCount = [];
+        $catUnmatchedCount = [];
+        $catMatched = [];
+        $catUnmatched = [];
+
+        $ensure = static function (string $name) use (&$catCounts, &$catQuestions, &$catPeople, &$catMatchedCount, &$catUnmatchedCount, &$catMatched, &$catUnmatched, $keys): void {
+            if (isset($catCounts[$name])) {
+                return;
+            }
+            $catCounts[$name] = 0;
+            $catQuestions[$name] = array_fill_keys($keys, 0);
+            $catPeople[$name] = array_fill_keys($keys, []);
+            $catMatchedCount[$name] = 0;
+            $catUnmatchedCount[$name] = 0;
+            $catMatched[$name] = [];
+            $catUnmatched[$name] = [];
+        };
+
+        foreach ($categoryNames as $name) {
+            $name = trim((string) $name);
+            if ($name !== '') {
+                $ensure($name);
+            }
+        }
+
+        foreach ($rows as $row) {
+            $channel = self::channelOf($row);
+            $questions[$channel]++;
+            $visitor = trim((string) ($row['visitor'] ?? ''));
+            if ($visitor !== '') {
+                $peopleSets[$channel][$visitor] = true;
+            }
+            $category = trim((string) ($row['category'] ?? ''));
+            if ($category === '') {
+                $category = 'ไม่ระบุหมวด';
+            }
+            $ensure($category);
+            $catCounts[$category]++;
+            $catQuestions[$category][$channel]++;
+            if ($visitor !== '') {
+                $catPeople[$category][$channel][$visitor] = true;
+            }
+            $asked = trim((string) ($row['question'] ?? ''));
+            $faq = trim((string) ($row['faq'] ?? ''));
+            $answer = trim((string) ($row['answer'] ?? ''));
+            $time = (string) ($row['time'] ?? '');
+            if (!empty($row['matched'])) {
+                $catMatchedCount[$category]++;
+                $label = $faq !== '' ? $faq : $asked;
+                $key = mb_strtolower(preg_replace('/\s+/u', ' ', $label) ?? $label);
+                $this->pushOutcome($catMatched[$category], $key, $label, $asked, $answer, $time);
+            } else {
+                $catUnmatchedCount[$category]++;
+                $key = mb_strtolower(preg_replace('/\s+/u', ' ', $asked) ?? $asked);
+                $this->pushOutcome($catUnmatched[$category], $key, $asked, $asked, '', $time);
+            }
+        }
+
+        $items = [];
+        foreach ($catCounts as $label => $count) {
+            $items[] = [
+                'label' => $label,
+                'count' => $count,
+                'matched' => $catMatchedCount[$label] ?? 0,
+                'unmatched' => $catUnmatchedCount[$label] ?? 0,
+            ];
+        }
+        usort($items, static function (array $a, array $b): int {
+            return $b['count'] <=> $a['count'] ?: strcmp($a['label'], $b['label']);
+        });
+
+        $categoryChannels = [];
+        $categoryDetails = [];
+        foreach ($items as $item) {
+            $label = $item['label'];
+            $people = [];
+            foreach ($keys as $key) {
+                $people[$key] = count($catPeople[$label][$key] ?? []);
+            }
+            $categoryChannels[$label] = [
+                'questions' => $catQuestions[$label],
+                'people' => $people,
+            ];
+            if ((int) $item['count'] > 0) {
+                $categoryDetails[$label] = [
+                    'matched' => $this->finishOutcome($catMatched[$label] ?? []),
+                    'unmatched' => $this->finishOutcome($catUnmatched[$label] ?? []),
+                ];
+            }
+        }
+
+        return [
+            'by_category' => $items,
+            'category_details' => $categoryDetails,
+            'by_channel' => [
+                'labels' => $labels,
+                'keys' => $keys,
+                'questions' => array_map(static fn (string $key): int => $questions[$key], $keys),
+                'people' => array_map(static fn (string $key): int => count($peopleSets[$key]), $keys),
+            ],
+            'category_channels' => $categoryChannels,
+        ];
+    }
+
+    /**
+     * @param array<string, array{question: string, answer: string, count: int, last_time: string, samples: list<string>}> $bucket
+     */
+    private function pushOutcome(array &$bucket, string $key, string $label, string $question, string $answer, string $time): void
+    {
+        if ($key === '' || $label === '') {
+            return;
+        }
+        $answer = mb_substr($answer, 0, 500);
+        if (!isset($bucket[$key])) {
+            $bucket[$key] = [
+                'question' => $label,
+                'answer' => $answer,
+                'count' => 0,
+                'last_time' => $time,
+                'samples' => [],
+            ];
+        }
+        $bucket[$key]['count']++;
+        if ($time >= (string) $bucket[$key]['last_time']) {
+            $bucket[$key]['last_time'] = $time;
+            $bucket[$key]['question'] = $label;
+            if ($answer !== '') {
+                $bucket[$key]['answer'] = $answer;
+            }
+        }
+        if ($question !== '' && $question !== $label && count($bucket[$key]['samples']) < 3 && !in_array($question, $bucket[$key]['samples'], true)) {
+            $bucket[$key]['samples'][] = $question;
+        }
+    }
+
+    /**
+     * @param array<string, array{question: string, answer: string, count: int, last_time: string, samples: list<string>}> $bucket
+     * @return array{total: int, items: list<array{question: string, answer: string, count: int, last_time: string, samples: list<string>}>}
+     */
+    private function finishOutcome(array $bucket, int $limit = 30): array
+    {
+        $items = array_values($bucket);
+        usort($items, static function (array $a, array $b): int {
+            return $b['count'] <=> $a['count'] ?: strcmp((string) $b['last_time'], (string) $a['last_time']);
+        });
+        return [
+            'total' => count($items),
+            'items' => array_slice($items, 0, $limit),
+        ];
+    }
+
+    public static function channelOf(array $row): string
+    {
+        return self::normalizeChannel((string) ($row['channel'] ?? ''), (string) ($row['visitor'] ?? ''));
+    }
+
+    public static function normalizeChannel(string $channel, string $visitor = ''): string
+    {
+        $channel = strtolower(trim($channel));
+        if (in_array($channel, ['web', 'line', 'facebook'], true)) {
+            return $channel;
+        }
+        $visitor = strtoupper($visitor);
+        if (str_starts_with($visitor, 'LINE')) {
+            return 'line';
+        }
+        if (str_starts_with($visitor, 'FB')) {
+            return 'facebook';
+        }
+        return 'web';
+    }
+
+    private function parseDay(string $value): ?int
+    {
+        $value = trim($value);
+        $dt = DateTime::createFromFormat('!Y-m-d', $value);
+        $errors = DateTime::getLastErrors();
+        if (!$dt || !empty($errors['warning_count']) || !empty($errors['error_count']) || $dt->format('Y-m-d') !== $value) {
+            return null;
+        }
+        $ts = strtotime($value . ' midnight');
+        return $ts === false ? null : $ts;
+    }
+
+    /**
+     * @return array{ok: bool, error: string, mode: string, from: string, to: string, from_ts: int, to_ts: int, days: int}
+     */
+    private function rangeError(string $message): array
+    {
+        return [
+            'ok' => false,
+            'error' => $message,
+            'mode' => 'custom',
+            'from' => '',
+            'to' => '',
+            'from_ts' => 0,
+            'to_ts' => 0,
+            'days' => 0,
         ];
     }
 

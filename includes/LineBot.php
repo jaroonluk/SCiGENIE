@@ -914,6 +914,7 @@ class LineBot
             $item = $result['item'] ?? [];
             (new AskLog())->record([
                 'visitor' => 'LINE' . substr(preg_replace('/[^A-Za-z0-9]/', '', $userId) ?? '', -5),
+                'channel' => 'line',
                 'category' => $category,
                 'question' => $question,
                 'matched' => !empty($result['matched']),
