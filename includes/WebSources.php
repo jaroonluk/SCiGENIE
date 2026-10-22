@@ -476,7 +476,6 @@ class WebSources
             $out = curl_exec($ch);
             $contentType = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
             $effective = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-            curl_close($ch);
             if (is_string($out) && $out !== '') {
                 $body = $out;
                 if ($effective !== '') {

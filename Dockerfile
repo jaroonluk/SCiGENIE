@@ -1,10 +1,8 @@
-FROM php:8.2-apache
+FROM php:8.5.12-apache
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libonig-dev \
-    && docker-php-ext-install mbstring pdo_mysql opcache \
-    && a2enmod rewrite headers \
-    && rm -rf /var/lib/apt/lists/*
+# mbstring and opcache ship with this image; install MySQL PDO only.
+RUN docker-php-ext-install pdo_mysql \
+    && a2enmod rewrite headers
 
 RUN sed -ri 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf

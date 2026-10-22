@@ -941,7 +941,6 @@ class MessengerBot
                 CURLOPT_TIMEOUT => 5,
             ]);
             $out = curl_exec($ch);
-            curl_close($ch);
             return is_string($out) ? $out : null;
         }
         $ctx = stream_context_create([
@@ -992,7 +991,6 @@ class MessengerBot
                 CURLOPT_TIMEOUT => 5,
             ]);
             $out = curl_exec($ch);
-            curl_close($ch);
             return is_string($out) ? $out : null;
         }
         $ctx = stream_context_create([

@@ -8,7 +8,7 @@ class Csv
         fwrite($fp, $text);
         rewind($fp);
         $rows = [];
-        while (($row = fgetcsv($fp)) !== false) {
+        while (($row = fgetcsv($fp, 0, ',', '"', '')) !== false) {
             $rows[] = $row;
         }
         fclose($fp);

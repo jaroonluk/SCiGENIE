@@ -175,7 +175,6 @@ class GoogleOAuth
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
             }
             $raw = curl_exec($ch);
-            curl_close($ch);
             return is_string($raw) ? $raw : '';
         }
 

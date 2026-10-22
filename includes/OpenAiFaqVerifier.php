@@ -288,7 +288,6 @@ class OpenAiFaqVerifier
             ]);
             $out = curl_exec($ch);
             $err = curl_error($ch);
-            curl_close($ch);
             if (!is_string($out) || $out === '') {
                 if ($err !== '') {
                     error_log('SCiGENIE OpenAI curl: ' . mb_substr($err, 0, 200));
