@@ -12,9 +12,29 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'GET
     json_response(['ok' => false, 'error' => 'Method not allowed'], 405);
 }
 
-$input = $_SERVER['REQUEST_METHOD'] === 'POST' ? request_json() : $_GET;
-$text = trim((string) ($input['text'] ?? $input['question'] ?? $input['message'] ?? ''));
-$userId = trim((string) ($input['user_id'] ?? $input['userId'] ?? $input['visitor'] ?? ''));
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $raw = file_get_contents('php://input') ?: '';
+    if ($raw !== '') {
+        $input = json_decode($raw, true);
+        if (!is_array($input)) {
+            json_response(['ok' => false, 'error' => 'รูปแบบข้อมูลไม่ถูกต้อง'], 400);
+        }
+    } else {
+        $input = $_POST;
+    }
+} else {
+    $input = $_GET;
+}
+
+try {
+    AskGuard::throttle('line-ask');
+    $text = AskGuard::question((string) ($input['text'] ?? $input['question'] ?? $input['message'] ?? ''));
+    $userId = AskGuard::token((string) ($input['user_id'] ?? $input['userId'] ?? $input['visitor'] ?? ''));
+} catch (InvalidArgumentException $e) {
+    json_response(['ok' => false, 'error' => $e->getMessage()], 400);
+} catch (RuntimeException $e) {
+    json_response(['ok' => false, 'error' => $e->getMessage()], 429);
+}
 
 if ($text === '') {
     json_response(['ok' => false, 'error' => 'กรุณาส่งข้อความคำถาม'], 422);

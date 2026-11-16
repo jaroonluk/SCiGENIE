@@ -15,6 +15,7 @@ data/fb-app-id.txt
 data/fb-app-id.fail
 data/fb-subscribe.fail
 data/web-cache/
+data/rate/
 .idea/
 tools/sheet.csv
 Thumbs.db

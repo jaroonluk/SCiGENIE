@@ -94,7 +94,7 @@
         <div class="scg-body"></div>
         <div class="scg-foot">
           <form class="scg-form">
-            <textarea rows="1" placeholder="พิมพ์คำถามได้เลย หรือเลือกหมวดเพื่อความแม่นยำ"></textarea>
+            <textarea rows="1" maxlength="500" placeholder="พิมพ์คำถามได้เลย หรือเลือกหมวดเพื่อความแม่นยำ"></textarea>
             <button class="scg-send" type="submit" title="ส่งคำถาม">${svg("send")}</button>
           </form>
           <div class="scg-note">ตอบจากคลังคำถามคณะวิทยาศาสตร์ • เลือกหมวดถ้าต้องการให้ตอบตรงขึ้น</div>
@@ -298,6 +298,10 @@
       });
       const data = await res.json();
       removeTyping();
+      if (!res.ok || data.ok === false) {
+        addBot(formatAnswer(data.error || "ระบบตอบคำถามขัดข้องชั่วคราว กรุณาลองอีกครั้ง หรือโทร 043-009-700"));
+        return;
+      }
       renderAnswer(data);
     } catch (e) {
       removeTyping();
