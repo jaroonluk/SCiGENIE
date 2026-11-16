@@ -40,7 +40,7 @@ class FaqService
 
     public function suggest(string $category = '', int $limit = 6): array
     {
-        $limit = max(1, min(20, $limit));
+        $limit = Db::intLimit($limit, 1, 20);
         if ($category !== '') {
             $this->ensureReady();
             $stmt = Db::app()->prepare(
@@ -49,9 +49,12 @@ class FaqService
                  INNER JOIN categories c ON c.id = f.category_id
                  WHERE c.name = :category AND f.question NOT LIKE :greet
                  ORDER BY f.id
-                 LIMIT ' . (int) $limit
+                 LIMIT :limit'
             );
-            $stmt->execute(['category' => $category, 'greet' => '%สวัสดี%']);
+            $stmt->bindValue(':category', $category);
+            $stmt->bindValue(':greet', '%สวัสดี%');
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->execute();
             $out = [];
             foreach ($stmt->fetchAll() as $row) {
                 $out[] = [

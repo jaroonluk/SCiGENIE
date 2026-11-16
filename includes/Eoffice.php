@@ -31,6 +31,7 @@ class Eoffice
             return [];
         }
         $like = '%' . self::escapeLike($q) . '%';
+        $limit = Db::intLimit($limit, 1, 40);
         $sql = 'SELECT username, fname, lname, email, email_other, position, pd_level
                 FROM tbluser
                 WHERE (
@@ -43,16 +44,16 @@ class Eoffice
                 )
                 AND IFNULL(pd_level, "0") NOT IN ("4", "5")
                 ORDER BY fname, lname
-                LIMIT ' . max(1, min(40, $limit));
+                LIMIT :limit';
         $stmt = Db::eoffice()->prepare($sql);
-        $stmt->execute([
-            'q1' => $like,
-            'q2' => $like,
-            'q3' => $like,
-            'q4' => $like,
-            'q5' => $like,
-            'q6' => $like,
-        ]);
+        $stmt->bindValue(':q1', $like);
+        $stmt->bindValue(':q2', $like);
+        $stmt->bindValue(':q3', $like);
+        $stmt->bindValue(':q4', $like);
+        $stmt->bindValue(':q5', $like);
+        $stmt->bindValue(':q6', $like);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
         $out = [];
         foreach ($stmt->fetchAll() as $row) {
             $email = strtolower(trim((string) ($row['email'] ?: $row['email_other'])));

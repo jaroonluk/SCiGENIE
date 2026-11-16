@@ -505,13 +505,14 @@ class FaqEmbedder
             }
         }
         if ($ids !== [] && self::$schemaReady) {
+            $ids = array_values(array_unique(array_map('intval', $ids)));
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
             try {
                 $stmt = Db::app()->prepare(
                     "SELECT faq_id, vector_json FROM faq_embeddings WHERE faq_id IN ($placeholders) AND model = ?"
                 );
                 $params = $ids;
-                    $params[] = self::effectiveModel();
+                $params[] = self::effectiveModel();
                 $stmt->execute($params);
                 foreach ($stmt->fetchAll() as $row) {
                     $vec = json_decode((string) ($row['vector_json'] ?? ''), true);

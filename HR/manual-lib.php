@@ -46,11 +46,15 @@ function pageBreak(): string
     return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
 }
 
-function tableXml(array $headers, array $rows): string
+function tableXml(array $headers, array $rows, array $colWidths = []): string
 {
     $cols = count($headers);
-    $width = (int) floor(9360 / max(1, $cols));
-    $xml = '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders>'
+    if ($colWidths === [] || count($colWidths) !== $cols) {
+        $equal = (int) floor(9360 / max(1, $cols));
+        $colWidths = array_fill(0, $cols, $equal);
+    }
+    $tableWidth = array_sum($colWidths);
+    $xml = '<w:tbl><w:tblPr><w:tblW w:w="' . $tableWidth . '" w:type="dxa"/><w:tblBorders>'
         . '<w:top w:val="single" w:sz="8" w:color="8A6A12"/>'
         . '<w:left w:val="single" w:sz="8" w:color="8A6A12"/>'
         . '<w:bottom w:val="single" w:sz="8" w:color="8A6A12"/>'
@@ -58,17 +62,18 @@ function tableXml(array $headers, array $rows): string
         . '<w:insideH w:val="single" w:sz="4" w:color="C4A35A"/>'
         . '<w:insideV w:val="single" w:sz="4" w:color="C4A35A"/>'
         . '</w:tblBorders></w:tblPr><w:tblGrid>';
-    for ($i = 0; $i < $cols; $i++) {
-        $xml .= '<w:gridCol w:w="' . $width . '"/>';
+    foreach ($colWidths as $width) {
+        $xml .= '<w:gridCol w:w="' . (int) $width . '"/>';
     }
     $xml .= '</w:tblGrid>';
 
-    $renderRow = static function (array $cells, bool $header) use ($width): string {
+    $renderRow = static function (array $cells, bool $header) use ($colWidths): string {
         $out = '<w:tr>';
-        foreach ($cells as $cell) {
+        foreach ($cells as $i => $cell) {
+            $width = (int) ($colWidths[$i] ?? 4680);
             $shd = $header ? '<w:shd w:val="clear" w:fill="FFF4D2"/>' : '';
             $out .= '<w:tc><w:tcPr><w:tcW w:w="' . $width . '" w:type="dxa"/>' . $shd
-                . '<w:vAlign w:val="center"/></w:tcPr>'
+                . '<w:vAlign w:val="top"/></w:tcPr>'
                 . p((string) $cell, 'left', $header, 32, 40, 40)
                 . '</w:tc>';
         }
@@ -120,7 +125,7 @@ function renderSections(array $sections): string
             continue;
         }
         if ($level === 'table') {
-            $body .= tableXml($sec['headers'], $sec['rows']);
+            $body .= tableXml($sec['headers'], $sec['rows'], $sec['widths'] ?? []);
             continue;
         }
         $body .= p((string) $sec['text'], (string) ($sec['align'] ?? 'both'), !empty($sec['bold']), 32, 140);

@@ -37,6 +37,14 @@ class Db
         return self::$eoffice;
     }
 
+    /**
+     * Keep LIMIT values as integers only so they never enter SQL as raw text.
+     */
+    public static function intLimit(int $limit, int $min = 1, int $max = 100): int
+    {
+        return max($min, min($max, $limit));
+    }
+
     private static function connect(string $host, int $port, string $name, string $user, string $pass): PDO
     {
         $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $name);
